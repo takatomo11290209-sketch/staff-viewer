@@ -1,0 +1,2268 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>スタッフ評価ビューワー</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700;900&family=JetBrains+Mono:wght@400;600&display=swap');
+:root{
+  --bg:#eef3f9;--surface:#f5f8fc;--white:#fff;
+  --ink:#0f1e35;--ink2:#2c3e5a;--muted:#7a8fa8;--border:#d0dcea;
+  --b900:#0a1628;--b800:#0d2247;--b700:#1a3a6b;--b600:#1e4d8c;
+  --b500:#2563b0;--b400:#4285d4;--b300:#7fb2e8;--b200:#bcd7f5;--b100:#deeaf9;--b050:#f0f7ff;
+  --green:#1a7a4a;--green-bg:#e8f7f0;
+  --red:#c0392b;--red-bg:#fdf0ef;
+  --amber:#b07010;--amber-bg:#fef8e6;
+  --teal:#0e7490;--teal-bg:#ecfeff;
+  --purple:#6d28d9;--purple-bg:#f3f0ff;
+  --sh-sm:0 1px 4px rgba(10,22,40,.08);--sh:0 4px 16px rgba(10,22,40,.11);--r:12px;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--ink);min-height:100vh;font-size:14px;}
+
+/* HEADER */
+.hdr{background:var(--b800);height:52px;display:flex;align-items:center;justify-content:space-between;padding:0 1.25rem;position:sticky;top:0;z-index:400;gap:.75rem;border-bottom:1px solid var(--b700);}
+.hdr-logo{font-size:.9rem;font-weight:900;color:#fff;letter-spacing:.06em;display:flex;align-items:center;gap:.5rem;flex-shrink:0;}
+.logo-mark{width:8px;height:8px;background:var(--b300);border-radius:50%;}
+.hdr-actions{display:flex;align-items:center;gap:.4rem;flex-shrink:0;flex-wrap:wrap;}
+
+/* UPLOAD */
+#uploadScreen{max-width:680px;margin:3.5rem auto;padding:0 1.5rem;}
+.up-card{background:var(--white);border-radius:16px;box-shadow:var(--sh);overflow:hidden;}
+.up-head{background:var(--b700);padding:1rem 1.5rem;color:#fff;font-weight:700;font-size:.92rem;}
+.up-body{padding:1.5rem;}
+.up-zone{border:2.5px dashed var(--b200);border-radius:12px;padding:2.8rem 1.5rem;text-align:center;cursor:pointer;transition:all .25s;position:relative;background:var(--b050);}
+.up-zone:hover,.up-zone.drag{border-color:var(--b500);background:var(--b100);}
+.up-zone input{position:absolute;inset:0;opacity:0;cursor:pointer;}
+.up-icon{font-size:2.5rem;margin-bottom:.75rem;}
+.up-h{font-size:1rem;font-weight:700;margin-bottom:.3rem;color:var(--b700);}
+.up-sub{font-size:.8rem;color:var(--muted);line-height:1.6;}
+.loaded-files{display:flex;flex-direction:column;gap:.5rem;margin-top:1rem;}
+.lf-row{background:var(--b050);border:1.5px solid var(--b100);border-radius:9px;padding:.6rem .9rem;display:flex;align-items:center;gap:.55rem;}
+.lf-name{font-weight:700;font-size:.85rem;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.tag{font-size:.64rem;font-weight:700;padding:.1rem .45rem;border-radius:8px;white-space:nowrap;}
+.tag-uketuke{background:var(--teal-bg);color:var(--teal);}
+.tag-kairo{background:var(--purple-bg);color:var(--purple);}
+.tag-shijutsu{background:#ede9fe;color:#5b21b6;}
+.tag-other{background:var(--b100);color:var(--b700);}
+.tag-nippo{background:var(--amber-bg);color:var(--amber);}
+.tag-shuho{background:var(--b100);color:var(--b600);}
+.close-btn{background:none;border:none;color:var(--muted);cursor:pointer;font-size:.9rem;padding:.1rem .28rem;border-radius:4px;transition:all .15s;flex-shrink:0;}
+.close-btn:hover{background:var(--red-bg);color:var(--red);}
+.start-row{margin-top:1.25rem;display:flex;justify-content:center;}
+
+/* APP LAYOUT */
+#appLayout{display:none;min-height:calc(100vh - 52px);}
+#appLayout.vis{display:flex;}
+
+/* SIDEBAR */
+.sidebar{width:234px;flex-shrink:0;background:var(--b800);display:flex;flex-direction:column;min-height:calc(100vh - 52px);position:sticky;top:52px;overflow-y:auto;}
+.sb-section{padding:.75rem .9rem .3rem;font-size:.62rem;font-weight:700;letter-spacing:.1em;color:var(--b300);text-transform:uppercase;display:flex;align-items:center;justify-content:space-between;}
+.sb-sort{font-size:.62rem;background:rgba(255,255,255,.08);border:none;color:var(--b300);padding:.15rem .4rem;border-radius:5px;cursor:pointer;font-family:inherit;}
+.sb-item{display:flex;align-items:center;gap:.5rem;padding:.5rem .9rem;cursor:pointer;border-left:3px solid transparent;transition:background .15s;user-select:none;}
+.sb-item:hover{background:rgba(255,255,255,.06);}
+.sb-item.active{background:rgba(255,255,255,.1);border-left-color:var(--b300);}
+.sb-item.merged-item{border-left-color:rgba(110,231,183,.3);}
+.sb-item.merged-item.active{border-left-color:#6ee7b7;}
+.sb-avatar{width:30px;height:30px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:700;color:#fff;}
+.sb-info{flex:1;min-width:0;}
+.sb-name{font-size:.82rem;font-weight:700;color:rgba(255,255,255,.9);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.sb-meta{font-size:.65rem;color:var(--b300);margin-top:.06rem;display:flex;gap:.25rem;flex-wrap:wrap;align-items:center;}
+.sb-tag{font-size:.6rem;font-weight:700;padding:.07rem .32rem;border-radius:5px;}
+.sb-tag-nippo{background:rgba(176,112,16,.35);color:#fbbf24;}
+.sb-tag-shuho{background:rgba(127,178,232,.2);color:var(--b300);}
+.sb-tag-uketuke{background:rgba(14,116,144,.3);color:#67e8f9;}
+.sb-tag-kairo{background:rgba(109,40,217,.3);color:#c4b5fd;}
+.sb-tag-shijutsu{background:rgba(91,33,182,.3);color:#c4b5fd;}
+.sb-tag-merged{background:rgba(26,122,74,.3);color:#6ee7b7;}
+.sb-tag-other{background:rgba(37,99,176,.3);color:var(--b300);}
+.sb-tag-team{background:rgba(245,158,11,.25);color:#fbbf24;}
+.sb-x{background:none;border:none;color:rgba(255,255,255,.22);cursor:pointer;font-size:.8rem;padding:.1rem;flex-shrink:0;transition:color .15s;}
+.sb-x:hover{color:var(--red);}
+.sb-divider{border:none;border-top:1px solid rgba(255,255,255,.06);margin:.4rem .9rem;}
+.sb-indent{padding-left:1.4rem;}
+
+/* MAIN */
+.main-area{flex:1;overflow-y:auto;min-width:0;}
+.main-inner{max-width:1080px;margin:0 auto;padding:1.25rem 1.5rem;display:flex;flex-direction:column;gap:1rem;}
+
+/* META BAR */
+.meta-bar{background:var(--white);border-radius:var(--r);padding:.85rem 1.25rem;display:flex;align-items:center;justify-content:space-between;box-shadow:var(--sh-sm);flex-wrap:wrap;gap:.75rem;border-top:3px solid var(--b500);}
+.meta-name{font-size:1.1rem;font-weight:900;color:var(--b800);}
+.meta-sub{font-size:.72rem;color:var(--muted);font-family:'JetBrains Mono',monospace;margin-top:.1rem;}
+.controls{display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;}
+select{font-family:inherit;font-size:.78rem;padding:.28rem .6rem;border:1.5px solid var(--border);border-radius:8px;background:var(--surface);color:var(--ink);cursor:pointer;}
+
+/* STATS */
+.stats-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(108px,1fr));gap:.65rem;}
+.stat-card{background:var(--white);border-radius:10px;padding:.85rem .9rem;text-align:center;box-shadow:var(--sh-sm);border-top:2px solid var(--b200);}
+.stat-n{font-size:1.4rem;font-weight:900;font-family:'JetBrains Mono',monospace;color:var(--b700);line-height:1;}
+.stat-pct{font-size:.78rem;color:var(--muted);font-family:'JetBrains Mono',monospace;}
+.stat-l{font-size:.65rem;color:var(--muted);margin-top:.22rem;line-height:1.35;}
+.gauge{height:4px;background:var(--b100);border-radius:2px;margin-top:.38rem;overflow:hidden;}
+.gauge-fill{height:100%;background:var(--b500);border-radius:2px;transition:width .6s ease;}
+.gf-g{background:var(--green);}.gf-a{background:var(--amber);}
+
+/* YN PANEL */
+.yn-panel{background:var(--white);border-radius:var(--r);box-shadow:var(--sh-sm);overflow:hidden;}
+.yn-head{background:var(--b700);color:#fff;padding:.7rem 1.2rem;display:flex;align-items:center;justify-content:space-between;cursor:pointer;}
+.yn-title{font-size:.8rem;font-weight:700;letter-spacing:.04em;}
+.yn-body{overflow-x:auto;}
+.yn-body.hidden{display:none;}
+.yn-table{width:100%;border-collapse:collapse;font-size:.82rem;}
+.yn-table th{background:var(--b050);color:var(--b700);font-weight:700;padding:.5rem .85rem;text-align:left;border-bottom:2px solid var(--b100);font-size:.73rem;white-space:nowrap;}
+.yn-table th.r{text-align:right;}
+.yn-table td{padding:.48rem .85rem;border-bottom:1px solid var(--border);vertical-align:middle;}
+.yn-table td.r{text-align:right;font-family:'JetBrains Mono',monospace;font-size:.8rem;}
+.yn-table tr:last-child td{border-bottom:none;}
+.yn-table tr:hover td{background:var(--b050);}
+.yn-bar-wrap{display:flex;align-items:center;gap:.45rem;min-width:110px;}
+.yn-bar{flex:1;height:6px;background:var(--b100);border-radius:3px;overflow:hidden;}
+.yn-bar-yes{height:100%;background:var(--green);border-radius:3px;transition:width .5s ease;}
+.yn-pct{font-size:.73rem;font-family:'JetBrains Mono',monospace;color:var(--b600);font-weight:600;min-width:34px;}
+
+/* TEAM COMPARE */
+.team-compare{background:var(--white);border-radius:var(--r);box-shadow:var(--sh-sm);overflow:hidden;}
+.tc-head{background:var(--b600);color:#fff;padding:.7rem 1.2rem;display:flex;align-items:center;justify-content:space-between;}
+.tc-title{font-size:.82rem;font-weight:700;letter-spacing:.04em;}
+.tc-body{overflow-x:auto;padding:.85rem 1rem;}
+.tc-tabs{display:flex;gap:.35rem;flex-wrap:wrap;margin-bottom:.85rem;}
+.tc-tab{padding:.28rem .72rem;border:1.5px solid var(--b200);border-radius:20px;background:var(--white);font-family:inherit;font-size:.74rem;cursor:pointer;transition:all .2s;color:var(--ink2);}
+.tc-tab:hover{border-color:var(--b500);color:var(--b500);}
+.tc-tab.on{background:var(--b700);border-color:var(--b700);color:#fff;font-weight:700;}
+.tc-grid{display:grid;gap:.5rem;}
+.tc-row{display:grid;align-items:center;gap:.6rem;padding:.55rem .7rem;border-radius:9px;background:var(--b050);}
+.tc-person{font-size:.82rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.tc-val{font-family:'JetBrains Mono',monospace;font-size:.9rem;font-weight:700;text-align:right;flex-shrink:0;}
+.tc-bar{height:8px;background:var(--b100);border-radius:4px;overflow:hidden;flex:1;}
+.tc-bar-fill{height:100%;border-radius:4px;transition:width .5s ease;}
+.tc-sub{font-size:.68rem;color:var(--muted);text-align:right;}
+.tc-empty{color:var(--muted);font-size:.82rem;padding:.5rem;}
+
+/* TEXT SUMMARY */
+.txt-summary{background:var(--b900);border-radius:var(--r);overflow:hidden;box-shadow:var(--sh);}
+.ts-head{padding:.75rem 1.2rem;display:flex;align-items:center;justify-content:space-between;cursor:pointer;border-bottom:1px solid rgba(255,255,255,.07);}
+.ts-title{font-size:.78rem;font-weight:700;color:var(--b300);letter-spacing:.06em;text-transform:uppercase;}
+.ts-body{display:none;padding:.85rem 1.1rem;}
+.ts-body.open{display:block;}
+.ts-sec-label{font-size:.65rem;font-weight:700;color:rgba(255,255,255,.35);letter-spacing:.1em;text-transform:uppercase;margin-bottom:.5rem;border-bottom:1px solid rgba(255,255,255,.07);padding-bottom:.3rem;margin-top:.85rem;}
+.ts-sec-label:first-child{margin-top:0;}
+.ts-item{background:rgba(255,255,255,.05);border-radius:7px;padding:.55rem .8rem;margin-bottom:.38rem;font-size:.83rem;color:rgba(255,255,255,.88);line-height:1.65;border-left:3px solid transparent;}
+.ts-item:last-child{margin-bottom:0;}
+.ts-item.ttheme{border-left-color:var(--teal);}
+.ts-item.tkudos{border-left-color:var(--amber);}
+.ts-item.tikusei{border-left-color:var(--green);}
+.ts-date{font-size:.65rem;color:rgba(255,255,255,.3);font-family:'JetBrains Mono',monospace;margin-bottom:.18rem;}
+
+/* WEEKLY SUMMARY */
+.sum-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:.85rem;}
+.sum-card{background:var(--white);border-radius:var(--r);box-shadow:var(--sh-sm);overflow:hidden;}
+.sum-head{background:var(--b600);color:#fff;padding:.6rem 1.05rem;font-size:.77rem;font-weight:700;letter-spacing:.04em;}
+.sum-body{padding:.85rem 1rem;}
+.sum-item{padding:.48rem .65rem;margin-bottom:.38rem;border-radius:7px;font-size:.82rem;line-height:1.6;border-left:3px solid var(--b200);background:var(--b050);}
+.sum-item:last-child{margin-bottom:0;}
+.sum-item.s-done{border-left-color:var(--green);background:var(--green-bg);}
+.sum-item.s-issue{border-left-color:var(--amber);background:var(--amber-bg);}
+.sum-item.s-theme{border-left-color:var(--teal);background:var(--teal-bg);}
+.sum-date{font-size:.65rem;color:var(--muted);font-family:'JetBrains Mono',monospace;margin-bottom:.18rem;}
+.goal-pair{border:1.5px solid var(--b100);border-radius:9px;padding:.6rem .8rem;margin-bottom:.45rem;}
+.goal-pair:last-child{margin-bottom:0;}
+.gp-date{font-size:.65rem;color:var(--muted);font-family:'JetBrains Mono',monospace;margin-bottom:.3rem;}
+.gp-lbl{font-size:.63rem;font-weight:700;color:var(--muted);margin-bottom:.18rem;letter-spacing:.06em;}
+.gp-issue{font-size:.81rem;line-height:1.55;padding:.38rem .55rem;background:var(--amber-bg);border-radius:6px;border-left:3px solid var(--amber);margin-bottom:.3rem;}
+.gp-goal{font-size:.81rem;line-height:1.55;padding:.38rem .55rem;background:var(--b050);border-radius:6px;border-left:3px solid var(--b500);}
+.todo-row{display:flex;align-items:flex-start;gap:.45rem;padding:.38rem .45rem;border-radius:6px;margin-bottom:.28rem;font-size:.81rem;line-height:1.5;}
+.todo-row:hover{background:var(--b050);}
+.todo-ck{color:var(--green);font-size:.88rem;flex-shrink:0;margin-top:.05em;}
+.todo-dt{font-size:.66rem;color:var(--muted);font-family:'JetBrains Mono',monospace;white-space:nowrap;flex-shrink:0;}
+.rank-row{display:flex;align-items:center;gap:.65rem;padding:.42rem .55rem;border-radius:7px;margin-bottom:.3rem;}
+.rank-row:hover{background:var(--b050);}
+.rank-num{font-size:.73rem;font-weight:700;font-family:'JetBrains Mono',monospace;color:var(--muted);width:16px;text-align:right;flex-shrink:0;}
+.rank-name{flex:1;font-size:.88rem;font-weight:700;color:var(--b800);}
+.rank-bar{flex:2;height:6px;background:var(--b100);border-radius:3px;overflow:hidden;}
+.rank-bar-fill{height:100%;background:var(--b500);border-radius:3px;}
+.rank-cnt{font-size:.8rem;font-weight:700;font-family:'JetBrains Mono',monospace;color:var(--b600);min-width:26px;text-align:right;}
+.rank-row:nth-child(1) .rank-bar-fill{background:#f59e0b;}
+.rank-row:nth-child(2) .rank-bar-fill{background:#94a3b8;}
+.rank-row:nth-child(3) .rank-bar-fill{background:#cd7c42;}
+
+/* MERGED BANNER */
+.merged-banner{background:linear-gradient(135deg,var(--b700),var(--b500));border-radius:var(--r);padding:1rem 1.25rem;color:#fff;box-shadow:var(--sh);display:flex;align-items:center;gap:1rem;flex-wrap:wrap;}
+.merged-avatar{width:44px;height:44px;border-radius:50%;background:rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;font-size:1.1rem;font-weight:900;flex-shrink:0;}
+.merged-info{flex:1;}
+.merged-name{font-size:1.15rem;font-weight:900;margin-bottom:.2rem;}
+.merged-badges{display:flex;gap:.35rem;flex-wrap:wrap;}
+.merged-badge{font-size:.68rem;font-weight:700;padding:.15rem .55rem;border-radius:10px;background:rgba(255,255,255,.18);color:#fff;}
+
+/* DATE TABS */
+.date-scroll{overflow-x:auto;padding-bottom:4px;}
+.date-tabs{display:flex;gap:.3rem;white-space:nowrap;}
+.dtab{padding:.32rem .8rem;border:1.5px solid var(--b200);border-radius:20px;background:var(--white);font-family:inherit;font-size:.75rem;font-weight:500;cursor:pointer;transition:all .2s;color:var(--ink2);}
+.dtab:hover{border-color:var(--b500);color:var(--b500);}
+.dtab.on{background:var(--b700);border-color:var(--b700);color:#fff;font-weight:700;}
+
+/* DAY CARDS */
+.cards-area{display:flex;flex-direction:column;gap:.75rem;}
+.day-card{background:var(--white);border-radius:var(--r);box-shadow:var(--sh-sm);overflow:hidden;animation:up .3s ease both;}
+@keyframes up{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.day-card:hover{box-shadow:var(--sh);}
+.dc-head{background:var(--b700);color:#fff;padding:.62rem 1.1rem;display:flex;align-items:center;justify-content:space-between;cursor:pointer;user-select:none;gap:.6rem;}
+.dc-date{font-size:.86rem;font-weight:700;font-family:'JetBrains Mono',monospace;flex-shrink:0;}
+.dc-chips{display:flex;gap:.28rem;flex-wrap:wrap;align-items:center;}
+.chip{font-size:.62rem;font-weight:700;padding:.12rem .45rem;border-radius:9px;white-space:nowrap;}
+.c-g{background:var(--green);color:#fff;}.c-a{background:var(--amber);color:#fff;}
+.c-b{background:var(--b500);color:#fff;}.c-r{background:var(--red);color:#fff;}
+.caret{color:rgba(255,255,255,.4);font-size:.78rem;transition:transform .25s;flex-shrink:0;}
+.day-card.col .caret{transform:rotate(-90deg);}
+.day-card.col .dc-body{display:none;}
+.dc-body{padding:.95rem 1.1rem;}
+.sec-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(225px,1fr));gap:.72rem;margin-bottom:.72rem;}
+.sec-block{border:1.5px solid var(--border);border-radius:9px;padding:.72rem .88rem;}
+.sec-block.full{grid-column:1/-1;}
+.sec-lbl{font-size:.63rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:.48rem;display:flex;align-items:center;gap:.3rem;}
+.sec-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;}
+.metrics{display:flex;flex-wrap:wrap;gap:.38rem;}
+.met{background:var(--surface);border-radius:7px;padding:.38rem .62rem;text-align:center;flex:1;min-width:62px;}
+.met-n{font-size:1.12rem;font-weight:900;font-family:'JetBrains Mono',monospace;color:var(--b700);}
+.met-l{font-size:.62rem;color:var(--muted);margin-top:.08rem;line-height:1.3;}
+.yn-list{display:flex;flex-direction:column;gap:.32rem;}
+.yn-row{display:flex;align-items:flex-start;gap:.4rem;font-size:.79rem;line-height:1.45;}
+.yn-b{flex-shrink:0;font-size:.6rem;font-weight:700;padding:.09rem .38rem;border-radius:5px;margin-top:.12em;}
+.yn-yes{background:var(--green-bg);color:var(--green);}
+.yn-no{background:var(--red-bg);color:var(--red);}
+.txt-block{background:var(--surface);border-radius:7px;padding:.52rem .72rem;font-size:.81rem;line-height:1.7;color:var(--ink2);margin-bottom:.38rem;border-left:3px solid var(--border);}
+.txt-block:last-child{margin-bottom:0;}
+.txt-block.hl{border-left-color:var(--b500);background:var(--b050);}
+.txt-block.kudos{border-left-color:var(--amber);background:var(--amber-bg);}
+.txt-block.theme-c{border-left-color:var(--teal);background:var(--teal-bg);}
+.txt-block.ikusei{border-left-color:var(--green);background:var(--green-bg);}
+.txt-lbl{font-size:.63rem;font-weight:700;color:var(--muted);margin-bottom:.2rem;letter-spacing:.07em;}
+.score-bar-wrap{display:flex;align-items:center;gap:.48rem;margin-bottom:.38rem;}
+.score-bar{flex:1;height:5px;background:var(--b100);border-radius:3px;overflow:hidden;}
+.score-bar-fill{height:100%;border-radius:3px;}
+
+/* AI CARD */
+.ai-card{background:linear-gradient(135deg,var(--b900),var(--b800));border-radius:9px;padding:.82rem .98rem;margin-top:.62rem;}
+.ai-lbl{font-size:.63rem;font-weight:700;letter-spacing:.12em;color:var(--b300);text-transform:uppercase;margin-bottom:.48rem;}
+.ai-pts{list-style:none;display:flex;flex-direction:column;gap:.32rem;}
+.ai-pts li{display:flex;gap:.4rem;align-items:flex-start;font-size:.83rem;line-height:1.55;color:rgba(255,255,255,.9);}
+.ai-growth{background:linear-gradient(135deg,var(--b900),var(--b800));border-radius:var(--r);padding:1.1rem 1.2rem;box-shadow:var(--sh);}
+.ag-header{font-size:.78rem;font-weight:700;color:var(--b300);letter-spacing:.08em;text-transform:uppercase;margin-bottom:.85rem;display:flex;align-items:center;gap:.45rem;}
+.ag-sections{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:.65rem;}
+.ag-section{background:rgba(255,255,255,.05);border-radius:9px;padding:.75rem .9rem;}
+.ag-sec-label{font-size:.65rem;font-weight:700;color:rgba(255,255,255,.35);letter-spacing:.1em;text-transform:uppercase;margin-bottom:.5rem;}
+.ag-text{font-size:.84rem;line-height:1.7;color:rgba(255,255,255,.88);}
+.sk{height:11px;border-radius:3px;margin-bottom:6px;background:linear-gradient(90deg,rgba(255,255,255,.05) 0%,rgba(255,255,255,.12) 50%,rgba(255,255,255,.05) 100%);background-size:300% 100%;animation:shim 1.8s infinite;}
+.sk1{width:88%}.sk2{width:68%}.sk3{width:80%}
+@keyframes shim{to{background-position:-300% 0}}
+
+/* BUTTONS */
+.btn{display:inline-flex;align-items:center;gap:.36rem;padding:.38rem .9rem;border:none;border-radius:8px;font-family:inherit;font-size:.77rem;font-weight:700;cursor:pointer;transition:all .2s;white-space:nowrap;}
+.btn-primary{background:var(--b500);color:#fff;}
+.btn-primary:hover{background:var(--b600);}
+.btn-primary:disabled{background:var(--border);color:var(--muted);cursor:not-allowed;}
+.btn-ghost{background:transparent;color:rgba(255,255,255,.75);border:1.5px solid rgba(255,255,255,.2);}
+.btn-ghost:hover{border-color:rgba(255,255,255,.55);color:#fff;}
+.btn-ghost:disabled{opacity:.4;cursor:not-allowed;}
+.btn-outline{background:transparent;color:var(--b600);border:1.5px solid var(--b200);}
+.btn-outline:hover{border-color:var(--b500);color:var(--b500);}
+.btn-sm{padding:.26rem .62rem;font-size:.71rem;}
+.spin{width:12px;height:12px;border:2px solid rgba(255,255,255,.25);border-top-color:#fff;border-radius:50%;animation:sp .7s linear infinite;display:inline-block;}
+@keyframes sp{to{transform:rotate(360deg)}}
+.empty{text-align:center;padding:3rem;color:var(--muted);}
+.empty .ico{font-size:2.5rem;margin-bottom:.5rem;}
+.section-header{display:flex;align-items:center;justify-content:space-between;padding:.5rem 0 .25rem;}
+.section-title{font-size:.78rem;font-weight:700;color:var(--b700);letter-spacing:.06em;text-transform:uppercase;display:flex;align-items:center;gap:.38rem;}
+
+/* CHART */
+.chart-wrap{background:var(--white);border-radius:var(--r);box-shadow:var(--sh-sm);overflow:hidden;margin-bottom:.75rem;}
+.chart-head{background:var(--b600);color:#fff;padding:.65rem 1.1rem;font-size:.8rem;font-weight:700;display:flex;align-items:center;justify-content:space-between;gap:.5rem;flex-wrap:wrap;}
+.chart-tabs{display:flex;gap:.3rem;}
+.chart-tab{padding:.18rem .55rem;border:1px solid rgba(255,255,255,.3);border-radius:12px;background:transparent;color:rgba(255,255,255,.7);font-size:.68rem;font-family:inherit;cursor:pointer;}
+.chart-tab.on{background:rgba(255,255,255,.25);color:#fff;font-weight:700;}
+.chart-body{padding:.85rem 1rem;}
+canvas{max-width:100%;display:block;}
+/* MEMO */
+.memo-panel{background:var(--white);border-radius:var(--r);box-shadow:var(--sh-sm);overflow:hidden;}
+.memo-head{background:#374151;color:#fff;padding:.65rem 1.1rem;font-size:.8rem;font-weight:700;}
+.memo-body{padding:.85rem 1rem;}
+.memo-item{border-left:3px solid var(--b300);padding:.45rem .7rem;margin-bottom:.45rem;background:var(--b050);border-radius:0 7px 7px 0;font-size:.82rem;line-height:1.6;}
+.memo-item-date{font-size:.65rem;color:var(--muted);font-family:'JetBrains Mono',monospace;margin-bottom:.12rem;}
+.memo-delete{float:right;background:none;border:none;color:var(--muted);cursor:pointer;font-size:.78rem;padding:.1rem .3rem;}
+.memo-delete:hover{color:var(--red);}
+.memo-input-row{display:flex;gap:.5rem;margin-top:.6rem;}
+.memo-input{flex:1;font-family:inherit;font-size:.82rem;padding:.4rem .65rem;border:1.5px solid var(--border);border-radius:8px;resize:none;}
+/* ALERT */
+.alert-dot{width:8px;height:8px;border-radius:50%;background:#f59e0b;flex-shrink:0;animation:pulse 1.5s infinite;}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+/* MONTH COMPARE */
+.mc-wrap{background:var(--white);border-radius:var(--r);box-shadow:var(--sh-sm);overflow:hidden;}
+.mc-head{background:var(--b700);color:#fff;padding:.65rem 1.1rem;font-size:.8rem;font-weight:700;}
+.mc-body{overflow-x:auto;padding:.85rem 1rem;}
+.mc-table{width:100%;border-collapse:collapse;font-size:.82rem;}
+.mc-table th{background:var(--b050);color:var(--b700);font-weight:700;padding:.45rem .75rem;text-align:center;border-bottom:2px solid var(--b100);font-size:.72rem;}
+.mc-table th:first-child{text-align:left;}
+.mc-table td{padding:.42rem .75rem;border-bottom:1px solid var(--border);text-align:center;}
+.mc-table td:first-child{text-align:left;font-size:.78rem;color:var(--ink2);}
+.mc-table tr:last-child td{border-bottom:none;}
+.mc-up{color:var(--green);font-weight:700;}.mc-down{color:var(--red);font-weight:700;}.mc-same{color:var(--muted);}
+/* INTERVIEW SHEET */
+.interview-sheet{background:linear-gradient(135deg,var(--b900),var(--b800));border-radius:var(--r);padding:1.2rem 1.4rem;box-shadow:var(--sh);}
+.is-header{font-size:.8rem;font-weight:700;color:var(--b300);letter-spacing:.08em;text-transform:uppercase;margin-bottom:.85rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.5rem;}
+.is-section{background:rgba(255,255,255,.06);border-radius:9px;padding:.8rem 1rem;margin-bottom:.6rem;}
+.is-sec-label{font-size:.65rem;font-weight:700;color:rgba(255,255,255,.4);letter-spacing:.1em;text-transform:uppercase;margin-bottom:.45rem;}
+.is-text{font-size:.84rem;line-height:1.75;color:rgba(255,255,255,.9);}
+.is-qs{list-style:none;display:flex;flex-direction:column;gap:.3rem;}
+.is-qs li{display:flex;gap:.5rem;font-size:.82rem;color:rgba(255,255,255,.88);line-height:1.55;}
+.is-qs li::before{content:"Q.";color:var(--b300);font-weight:700;flex-shrink:0;}
+/* REPORT */
+@media print{
+  .no-print{display:none!important;}
+  .report-page{page-break-after:always;}
+}
+.report-preview{background:#fff;border:1px solid var(--border);border-radius:var(--r);padding:1.5rem 2rem;box-shadow:var(--sh);font-size:.85rem;line-height:1.7;color:#111;}
+.report-preview h2{font-size:1.1rem;border-bottom:2px solid #1a3a6b;padding-bottom:.4rem;margin-bottom:.85rem;color:#1a3a6b;}
+.report-preview h3{font-size:.9rem;color:#2563b0;margin:.8rem 0 .35rem;font-weight:700;}
+.report-preview .rp-row{display:flex;gap:1.5rem;flex-wrap:wrap;margin-bottom:.75rem;}
+.report-preview .rp-stat{text-align:center;min-width:70px;}
+.report-preview .rp-stat-n{font-size:1.5rem;font-weight:900;color:#1a3a6b;font-family:'JetBrains Mono',monospace;}
+.report-preview .rp-stat-l{font-size:.65rem;color:#666;margin-top:.1rem;}
+.date-range-bar{background:var(--white);border-radius:var(--r);padding:.7rem 1.1rem;display:flex;align-items:center;gap:.65rem;flex-wrap:wrap;box-shadow:var(--sh-sm);border-left:3px solid var(--teal);}
+.date-range-bar label{font-size:.72rem;font-weight:700;color:var(--muted);white-space:nowrap;}
+.date-range-bar input[type=date]{font-family:inherit;font-size:.78rem;padding:.28rem .55rem;border:1.5px solid var(--border);border-radius:8px;background:var(--surface);color:var(--ink);cursor:pointer;}
+.date-range-bar .range-count{font-size:.72rem;color:var(--muted);margin-left:.25rem;}
+/* PRINT */
+#printArea{display:none;}
+@media print{
+  body *{visibility:hidden;}
+  body>*:not(#printArea){display:none!important;}
+  #printArea{display:block!important;position:fixed;inset:0;padding:1.5rem;background:#fff;z-index:99999;}
+  #printArea *{visibility:visible;}
+  .day-card{box-shadow:none!important;border:1px solid #ccc;break-inside:avoid;margin-bottom:.8rem;}
+  .ai-card,.ai-growth{background:#0d2247!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+}
+.filter-bar{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;padding:.6rem .75rem;background:var(--surface);border-radius:var(--r);margin-bottom:.75rem;}
+.filter-bar-rp{display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;padding:.55rem .8rem;background:#1e3a5f;border-radius:var(--r);margin-bottom:.75rem;border:1.5px solid #3a5a8a;}
+.filter-bar-rp select,.filter-bar-rp input[type=date]{font-family:inherit;font-size:.82rem;padding:.3rem .55rem;border:1.5px solid #4a7abf;border-radius:8px;background:#0f2040;color:#e2f0ff;cursor:pointer;}
+.filter-bar-rp select option{background:#0f2040;color:#e2f0ff;}
+.filter-bar-rp .rp-label{color:#90b8e8;font-size:.78rem;font-weight:600;white-space:nowrap;}
+</style>
+</head>
+<body>
+<div id="printArea"></div>
+
+<header class="hdr">
+  <div class="hdr-logo"><span class="logo-mark"></span>スタッフ評価ビューワー</div>
+  <div class="hdr-actions">
+    <div id="apiKeyBar" style="display:none;align-items:center;gap:.35rem;background:rgba(255,255,255,.07);border-radius:8px;padding:.2rem .6rem">
+      <span style="font-size:.65rem;color:rgba(255,255,255,.5);white-space:nowrap">🔑 APIキー</span>
+      <input id="apiKeyInput" type="text" placeholder="sk-ant-api03-..." style="font-family:monospace;font-size:.7rem;padding:.22rem .5rem;border:1px solid rgba(255,255,255,.25);border-radius:6px;background:rgba(0,0,0,.4);color:#e2e8f0;width:220px" oninput="saveApiKey(this.value)" onchange="saveApiKey(this.value)" onpaste="setTimeout(()=>saveApiKey(document.getElementById('apiKeyInput').value),50)">
+      <span id="apiKeyStatus" style="font-size:.65rem;color:rgba(255,255,255,.4)"></span>
+    </div>
+    <button class="btn btn-ghost btn-sm" id="btnAiAll" style="display:none" onclick="genAllCards()">✨ AI要点生成</button>
+    <button class="btn btn-ghost btn-sm" id="btnAiSum" style="display:none" onclick="genWeeklySummary()">📊 AI分析</button>
+    <button class="btn btn-ghost btn-sm" id="btnAiGrowth" style="display:none" onclick="genGrowthAnalysis()">📈 成長傾向</button>
+    <button class="btn btn-ghost btn-sm" id="btnInterview" style="display:none" onclick="genInterviewSheet()">🗣 面談準備</button>
+    <button class="btn btn-ghost btn-sm" id="btnCopyAi" style="display:none" onclick="copyForClaude()">📋 AIに聞く</button>
+    <button class="btn btn-ghost btn-sm" id="btnReport" style="display:none" onclick="showReport()">📄 期間レポート</button>
+    <button class="btn btn-ghost btn-sm" onclick="doPrint()">🖨 印刷</button>
+    <button class="btn btn-ghost btn-sm" onclick="doSave()">💾 保存</button>
+    <button class="btn btn-ghost btn-sm" id="btnAdd" style="display:none" onclick="showUpload()">＋ 追加</button>
+  </div>
+</header>
+
+<div id="uploadScreen">
+  <div class="up-card">
+    <div class="up-head">📂 ファイルをアップロード</div>
+    <div class="up-body">
+      <div class="up-zone" id="dropZone">
+        <input type="file" id="fileInput" accept=".xlsx,.csv" multiple onchange="handleFiles(event)">
+        <div class="up-icon">📋</div>
+        <div class="up-h">日報 / 週報ファイルをアップロード</div>
+        <div class="up-sub">複数ファイル同時対応 ・ .xlsx / .csv<br>ドロップまたはクリックして選択</div>
+      </div>
+      <div class="loaded-files" id="loadedFiles"></div>
+      <div class="start-row" id="startRow" style="display:none">
+        <button class="btn btn-primary" onclick="startView()">📊 レポートを表示 →</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- AI結果モーダル -->
+<div id="aiModal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.65);overflow-y:auto;padding:2rem 1rem;" onclick="if(event.target===this)closeAiModal()">
+  <div style="max-width:720px;margin:0 auto;background:var(--b900);border-radius:var(--r);box-shadow:0 24px 64px rgba(0,0,0,.5);overflow:hidden;">
+    <div style="background:var(--b700);padding:.85rem 1.2rem;display:flex;align-items:center;justify-content:space-between;">
+      <span id="aiModalTitle" style="font-weight:700;color:#fff;font-size:.9rem"></span>
+      <button onclick="closeAiModal()" style="background:none;border:none;color:rgba(255,255,255,.6);font-size:1.2rem;cursor:pointer;padding:.2rem .5rem">✕</button>
+    </div>
+    <div id="aiModalBody" style="padding:1.2rem 1.4rem;"></div>
+  </div>
+</div>
+
+<div id="appLayout">
+  <nav class="sidebar" id="sidebar"></nav>
+  <main class="main-area"><div class="main-inner" id="mainInner"></div></main>
+</div>
+
+<script>
+// ════════════════════════════════════════
+//  STATE
+// ════════════════════════════════════════
+let FILES = [];
+let activeId = null;
+let filterDate = 'all';
+let filterDateFrom = '';
+let filterDateTo = '';
+let sortDir = 'desc';
+let sbSort = 'name';
+let MEMOS = {};  // {person: [{date,text}]}  ※ sessionStorageに永続化
+
+// メモ読み書き
+function loadMemos(){try{MEMOS=JSON.parse(sessionStorage.getItem('staffMemos')||'{}');}catch{MEMOS={};}}
+function saveMemos(){try{sessionStorage.setItem('staffMemos',JSON.stringify(MEMOS));}catch{}}
+loadMemos();
+
+// APIキー管理
+let API_KEY = '';
+function loadApiKey(){
+  try{
+    const k=sessionStorage.getItem('staffApiKey')||'';
+    API_KEY=k;
+    const inp=document.getElementById('apiKeyInput');
+    const sts=document.getElementById('apiKeyStatus');
+    if(inp&&k){inp.value=k;if(sts)sts.textContent='✓';}
+  }catch{}
+}
+function saveApiKey(v){
+  API_KEY=v.trim();
+  try{sessionStorage.setItem('staffApiKey',API_KEY);}catch{}
+  const sts=document.getElementById('apiKeyStatus');
+  if(sts)sts.textContent=API_KEY?'✓':'';
+}
+function getApiKey(){return API_KEY;}
+
+// merged persons index: mergedIndex[i] = personName
+// Use index to avoid Japanese in onclick attributes
+const mergedIndex = [];
+
+// ════════════════════════════════════════
+//  CLASSIFY
+// ════════════════════════════════════════
+function classify(name, headers) {
+  const hStr = headers.join(' ');
+  let role = 'other';
+  if      (name.includes('受付'))                              role = 'uketuke';
+  else if (name.includes('カイロ') || name.toLowerCase().includes('kairo')) role = 'kairo';
+  else if (name.includes('施術'))                              role = 'shijutsu';
+  else if (hStr.includes('回数券') || hStr.includes('レントゲン'))          role = 'shijutsu';
+
+  const type = (name.includes('週報') || hStr.includes('先週') || hStr.includes('今週のやること')) ? 'shuho' : 'nippo';
+
+  // Extract person name: everything before the first underscore
+  const m = name.match(/^([^_]+)/);
+  const person = m ? m[1].replace(/\.[^.]+$/,'') : name.replace(/\.[^.]+$/,'');
+
+  return { role, type, person };
+}
+
+// ════════════════════════════════════════
+//  HELPERS
+// ════════════════════════════════════════
+const C = {
+  date:['申請日','タイムスタンプ'],moti:['モチベーション'],load:['業務負荷'],
+  bikka:['院内美化'],achRate:['達成率'],prevTodo:['先週の週報で書いた'],
+  eval:['先週の業務に関する評価','先週の課題に対しての評価'],
+  goal:['今週の目標','今週の数字の管理における目標','先週の評価・課題に対して'],
+  done:['今週の成果','完了タスク','本日の業務','今日の業務'],
+  issue:['課題・ブロッカー','課題・問題点'],
+  todo:['今週のやることリスト','明日の予定','今週のやること'],
+  ikusei:['シェア】育成','育成において行ったこと','育成意識に関する'],
+  joui:['シェア】情意評価','情意評価に関する'],
+  theme:['テーマシェア','フィロソフィーシェア','印象に残った','テーマシェアor','テーマ,フィロソフィーシェア'],
+  kudos:['承認・賞賛ボード','承認ボード'],
+  impressed:['印象に残った人'],
+  free:['要望や質問','自由記入'],
+  checkbox:['本日意識したことや','意識したことや、取り組んだこと'],
+  checkboxComment:['上記のチェックで意識した点','チェックで意識した'],
+  sns:['SNSを何件'],kuchi:['口コミの声掛け'],shorei:['症例を何件'],
+  col:['コラムや記事'],shinkan:['新患のうち紹介'],
+  shinkiOpp:['新規回数券の案内','レントゲン説明は何人'],
+  shinkiAch:['新規回数券は何枚成約'],
+  kizonOpp:['既存患者の回数券更新は何枚機会'],
+  kizonAch:['既存患者の回数券更新は何枚成約'],
+};
+function fh(headers,key){const cs=Array.isArray(key)?key:(C[key]||[key]);for(const c of cs){const h=headers.find(h=>h&&h.includes(c));if(h)return h;}return null;}
+function fv(row,headers,key){const h=fh(headers,key);return h?String(row[h]??''):'';}
+function fmtDate(v){
+  if(!v)return'';const s=String(v);
+  if(s.match(/^\d{4}\/\d{2}\/\d{2}/))return s.slice(0,10);
+  if(s.match(/^\d{4}-\d{2}-\d{2}/))return s.slice(0,10).replace(/-/g,'/');
+  try{const d=new Date(s);if(!isNaN(d))return`${d.getFullYear()}/${p2(d.getMonth()+1)}/${p2(d.getDate())}`;}catch{}
+  return s.slice(0,10);
+}
+function p2(n){return String(n).padStart(2,'0');}
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');}
+function blank(v){const s=String(v||'').trim();return!s||['なし','なし。','書いてません','特になし','行えていない','ー','-'].includes(s);}
+function pct(a,b){a=parseFloat(a)||0;b=parseFloat(b)||0;return b>0?Math.round(a/b*100):null;}
+function roleLabel(r){return{uketuke:'受付',kairo:'カイロ',shijutsu:'施術者',other:'スタッフ'}[r]||r;}
+function roleColor(r){return{uketuke:'#0e7490',kairo:'#6d28d9',shijutsu:'#5b21b6',other:'#2563b0'}[r]||'#2563b0';}
+
+// ════════════════════════════════════════
+//  FILE LOADING
+// ════════════════════════════════════════
+async function handleFiles(e){for(const f of Array.from(e.target.files))await readOne(f);renderUploadList();}
+function readOne(file){
+  return new Promise(res=>{
+    const reader=new FileReader();
+    reader.onload=ev=>{
+      try{
+        let data;
+        if(file.name.endsWith('.csv')){
+          data=ev.target.result.split('\n').map(r=>r.split(',').map(c=>c.replace(/^"|"$/g,'').trim()));
+        }else{
+          const wb=XLSX.read(ev.target.result,{type:'array',cellDates:true});
+          data=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,defval:'',raw:false});
+        }
+        if(data.length<2){res();return;}
+        const headers=data[0].map(h=>String(h||''));
+        const dateKeyIdx=headers.findIndex(h=>h&&(h.includes('申請日')||h.includes('タイムスタンプ')));
+        const rows=data.slice(1).filter(r=>r.some(c=>c!=='')).map(r=>{const o={};headers.forEach((h,i)=>o[h]=r[i]??'');return o;}).filter(r=>{
+          if(dateKeyIdx<0)return true;
+          const v=String(r[headers[dateKeyIdx]]||'').trim();
+          return v!==''&&v!=='undefined'&&v!=='null';
+        });
+        const {role,type,person}=classify(file.name,headers);
+        if(!FILES.find(f=>f.id===file.name))FILES.push({id:file.name,name:file.name,person,role,type,rows,headers});
+      }catch(e){console.error(e);}
+      res();
+    };
+    file.name.endsWith('.csv')?reader.readAsText(file,'UTF-8'):reader.readAsArrayBuffer(file);
+  });
+}
+function removeFile(id){FILES=FILES.filter(f=>f.id!==id);if(activeId===id)activeId=FILES[0]?.id||null;renderUploadList();}
+function renderUploadList(){
+  document.getElementById('loadedFiles').innerHTML=FILES.map(f=>`
+    <div class="lf-row">
+      <div style="flex:1;min-width:0"><div class="lf-name">${f.name}</div><div style="font-size:.7rem;color:var(--muted)">${f.rows.length}件 · ${f.person} · ${roleLabel(f.role)}</div></div>
+      <span class="tag tag-${f.role}">${roleLabel(f.role)}</span>
+      <span class="tag tag-${f.type}">${f.type==='nippo'?'日報':'週報'}</span>
+      <button class="close-btn" data-id="${esc(f.id)}" onclick="removeFile(this.dataset.id)">✕</button>
+    </div>`).join('');
+  document.getElementById('startRow').style.display=FILES.length?'':'none';
+}
+
+// ════════════════════════════════════════
+//  START
+// ════════════════════════════════════════
+function startView(){
+  document.getElementById('uploadScreen').style.display='none';
+  document.getElementById('appLayout').classList.add('vis');
+  ['btnAdd','btnAiAll','btnAiSum','btnAiGrowth','btnInterview','btnCopyAi','btnReport'].forEach(id=>document.getElementById(id).style.display='');
+  const akb=document.getElementById('apiKeyBar');if(akb)akb.style.display='flex';
+  loadApiKey();
+  filterDate='all';sortDir='desc';
+  activeId=FILES[0]?.id||null;
+  buildSidebar();render();
+}
+function showUpload(){document.getElementById('uploadScreen').style.display='';document.getElementById('fileInput').value='';renderUploadList();}
+
+// ════════════════════════════════════════
+//  ALERT DETECTION
+// ════════════════════════════════════════
+function getAlerts(f) {
+  const alerts = [];
+  const dateH = fh(f.headers,'date');
+  const motiH = fh(f.headers,'moti');
+  const cbH   = fh(f.headers,'checkbox');
+
+  // モチベ2連続3以下
+  if(motiH) {
+    const sorted = [...f.rows]
+      .filter(r=>fmtDate(r[dateH]||''))
+      .sort((a,b)=>fmtDate(b[dateH]).localeCompare(fmtDate(a[dateH])));
+    const last2 = sorted.slice(0,2).map(r=>parseFloat(r[motiH])).filter(v=>!isNaN(v));
+    if(last2.length>=2 && last2.every(v=>v<=3)) alerts.push('モチベ低下');
+  }
+
+  // チェック数が平均の半分以下（直近）
+  if(cbH) {
+    const counts = f.rows.map(r=>String(r[cbH]||'').trim())
+      .map(v=>v?v.split(/[,、\n]/).filter(Boolean).length:0);
+    const avg = counts.length ? counts.reduce((a,b)=>a+b,0)/counts.length : 0;
+    const sorted2 = [...f.rows]
+      .filter(r=>fmtDate(r[dateH]||''))
+      .sort((a,b)=>fmtDate(b[dateH]).localeCompare(fmtDate(a[dateH])));
+    const lastCount = sorted2[0] ? String(sorted2[0][cbH]||'').trim().split(/[,、\n]/).filter(Boolean).length : 0;
+    if(avg>0 && lastCount < avg*0.5) alerts.push('チェック減少');
+  }
+  return alerts;
+}
+
+// ════════════════════════════════════════
+//  SIDEBAR
+// ════════════════════════════════════════
+function buildSidebar(){
+  const sb=document.getElementById('sidebar');
+  // Rebuild mergedIndex
+  mergedIndex.length=0;
+
+  const personMap={};
+  FILES.forEach(f=>{if(!personMap[f.person])personMap[f.person]=[];personMap[f.person].push(f);});
+  let entries=Object.entries(personMap);
+  if(sbSort==='name')entries.sort((a,b)=>a[0].localeCompare(b[0],'ja'));
+  else if(sbSort==='role')entries.sort((a,b)=>a[1][0].role.localeCompare(b[1][0].role));
+  else if(sbSort==='type')entries.sort((a,b)=>a[1][0].type.localeCompare(b[1][0].type));
+
+  let html='';
+  const hasManyFiles=FILES.length>1;
+  if(hasManyFiles){
+    html+=`<div class="sb-section">全体</div>
+    <div class="sb-item${activeId==='__all__'?' active':''}" data-action="all">
+      <div class="sb-avatar" style="background:var(--b500)">★</div>
+      <div class="sb-info"><div class="sb-name">全員サマリー</div><div class="sb-meta">${FILES.length}名</div></div>
+    </div>
+    <div class="sb-item${activeId==='__team__'?' active':''}" data-action="team">
+      <div class="sb-avatar" style="background:#b07010">📊</div>
+      <div class="sb-info"><div class="sb-name">チーム比較</div><div class="sb-meta"><span class="sb-tag sb-tag-team">横並び比較</span></div></div>
+    </div>
+    <hr class="sb-divider">`;
+  }
+
+  html+=`<div class="sb-section">スタッフ
+    <select class="sb-sort" id="sbSortSel">
+      <option value="name"${sbSort==='name'?' selected':''}>名前順</option>
+      <option value="role"${sbSort==='role'?' selected':''}>役割順</option>
+      <option value="type"${sbSort==='type'?' selected':''}>種別順</option>
+    </select>
+  </div>`;
+
+  entries.forEach(([person,flist])=>{
+    const hasN=flist.some(f=>f.type==='nippo');
+    const hasS=flist.some(f=>f.type==='shuho');
+    if(hasN&&hasS){
+      const idx=mergedIndex.length;
+      mergedIndex.push(person);
+      const isActive=activeId===`__merged__${idx}`;
+      const nippoF=flist.find(f=>f.type==='nippo');
+      const shuhoF=flist.find(f=>f.type==='shuho');
+      const mergedLabel=`${esc(person)} 週報＋日報`;
+      html+=`<div class="sb-item merged-item${isActive?' active':''}" data-action="merged" data-idx="${idx}">
+        <div class="sb-avatar" style="background:${roleColor(flist[0].role)}">${person.slice(0,1)}</div>
+        <div class="sb-info">
+          <div class="sb-name">${mergedLabel}</div>
+          <div class="sb-meta">
+            <span class="sb-tag sb-tag-merged">統合ビュー</span>
+            <span class="sb-tag sb-tag-${flist[0].role}">${roleLabel(flist[0].role)}</span>
+            <span style="color:rgba(255,255,255,.28)">${(nippoF?.rows.length||0)+(shuhoF?.rows.length||0)}件</span>
+          </div>
+        </div>
+      </div>`;
+    }
+    flist.forEach(f=>{
+      const isActive=f.id===activeId;
+      const falerts=getAlerts(f);
+      html+=`<div class="sb-item sb-indent${isActive?' active':''}" data-action="file" data-id="${esc(f.id)}">
+        <div class="sb-avatar" style="background:${roleColor(f.role)};opacity:.7;font-size:.65rem">${f.person.slice(0,1)}</div>
+        <div class="sb-info">
+          <div class="sb-name" style="display:flex;align-items:center;gap:.35rem">${esc(f.person)} <span style="opacity:.5;font-size:.65rem">${f.type==='nippo'?'日報':'週報'}</span>${falerts.length?`<span class="alert-dot" title="${falerts.join(', ')}"></span>`:''}</div>
+          <div class="sb-meta">
+            <span class="sb-tag sb-tag-${f.type}">${f.type==='nippo'?'日報':'週報'}</span>
+            <span class="sb-tag sb-tag-${f.role}">${roleLabel(f.role)}</span>
+            <span style="color:rgba(255,255,255,.28)">${f.rows.length}件</span>
+          </div>
+        </div>
+        <button class="sb-x" data-id="${esc(f.id)}" onclick="event.stopPropagation();removeSb(this.dataset.id)">✕</button>
+      </div>`;
+    });
+  });
+
+  sb.innerHTML=html;
+
+  // ★修正: クリック時はbuildSidebar()を再呼び出しせずupdateSidebarActiveのみ
+  // buildSidebar()の再帰呼び出しがmergedIndexをリセットしてしまうバグを修正
+  sb.querySelectorAll('.sb-item[data-action]').forEach(el=>{
+    el.addEventListener('click',()=>{
+      const action=el.dataset.action;
+      if(action==='all'){
+        activeId='__all__';
+        updateSidebarActive(); renderAll();
+      } else if(action==='team'){
+        activeId='__team__';
+        updateSidebarActive(); renderTeam();
+      } else if(action==='merged'){
+        const idx=parseInt(el.dataset.idx);
+        const person=mergedIndex[idx]; // buildSidebar時に構築済み・再構築不要
+        if(!person) return;
+        activeId=`__merged__${idx}`;
+        filterDate='all';
+        updateSidebarActive();
+        renderMerged(person);
+      } else if(action==='file'){
+        activeId=el.dataset.id;
+        filterDate='all';
+        updateSidebarActive(); render();
+      }
+    });
+  });
+
+  const sel=document.getElementById('sbSortSel');
+  if(sel)sel.addEventListener('change',e=>{sbSort=e.target.value;buildSidebar();});
+}
+
+// アクティブ状態だけ更新（mergedIndexを破壊しない）
+function updateSidebarActive(){
+  document.querySelectorAll('#sidebar .sb-item[data-action]').forEach(el=>{
+    const action=el.dataset.action;
+    let isActive=false;
+    if(action==='all') isActive=activeId==='__all__';
+    else if(action==='team') isActive=activeId==='__team__';
+    else if(action==='merged') isActive=activeId===`__merged__${el.dataset.idx}`;
+    else if(action==='file') isActive=activeId===el.dataset.id;
+    el.classList.toggle('active', isActive);
+  });
+}
+
+function removeSb(id){
+  FILES=FILES.filter(f=>f.id!==id);
+  if(activeId===id)activeId=FILES[0]?.id||null;
+  buildSidebar();
+  if(activeId==='__all__')renderAll();
+  else if(activeId==='__team__')renderTeam();
+  else if(activeId&&activeId.startsWith('__merged__')){const idx=parseInt(activeId.replace('__merged__',''));if(mergedIndex[idx])renderMerged(mergedIndex[idx]);else render();}
+  else render();
+}
+
+// ════════════════════════════════════════
+//  RENDER ALL (全員サマリー)
+// ════════════════════════════════════════
+function renderAll(){
+  // ── 印象ランキング ──
+  const votes={};
+  FILES.forEach(f=>{
+    const h=fh(f.headers,'impressed');if(!h)return;
+    f.rows.forEach(r=>{const v=r[h];if(!v||blank(v))return;
+      String(v).split(/[,、\n]/).map(s=>s.trim()).filter(Boolean).forEach(name=>{votes[name]=(votes[name]||0)+1;});
+    });
+  });
+  const ranked=Object.entries(votes).sort((a,b)=>b[1]-a[1]);
+  const maxV=ranked[0]?.[1]||1;
+  const rankHTML=ranked.length?ranked.map(([name,cnt],i)=>`<div class="rank-row"><div class="rank-num">${i+1}</div><div class="rank-name">${esc(name)}</div><div class="rank-bar"><div class="rank-bar-fill" style="width:${cnt/maxV*100}%"></div></div><div class="rank-cnt">${cnt}票</div></div>`).join(''):'<p style="color:var(--muted);font-size:.82rem">データなし</p>';
+
+  // ── スタッフ一覧カード（ボタンつき） ──
+  const personCards=FILES.map(f=>`
+    <div style="display:flex;align-items:center;gap:.7rem;padding:.5rem .65rem;border-radius:9px;background:var(--b050);margin-bottom:.38rem">
+      <div class="sb-avatar" style="background:${roleColor(f.role)};width:30px;height:30px;font-size:.72rem">${f.person.slice(0,1)}</div>
+      <div style="flex:1"><div style="font-weight:700;font-size:.86rem">${esc(f.person)}</div><div style="font-size:.7rem;color:var(--muted)">${roleLabel(f.role)} · ${f.type==='nippo'?'日報':'週報'} · ${f.rows.length}件</div></div>
+      <button class="btn btn-outline btn-sm" data-id="${esc(f.id)}" onclick="selectFileDirect(this.dataset.id)">表示→</button>
+    </div>`).join('');
+
+  // ── 人物ごとに日報＋週報をまとめたセクションを生成 ──
+  const personMap={};
+  FILES.forEach(f=>{if(!personMap[f.person])personMap[f.person]=[];personMap[f.person].push(f);});
+
+  const personSections=Object.entries(personMap).sort((a,b)=>a[0].localeCompare(b[0],'ja')).map(([person,flist])=>{
+    const nippoRaw=flist.find(f=>f.type==='nippo');
+    const shuhoRaw=flist.find(f=>f.type==='shuho');
+    // 日付範囲でrows絞り込み（統計・集計はフィルター後で行う）
+    const filterRows=(f)=>{
+      if(!f)return null;
+      const dh=fh(f.headers,'date');
+      if(!filterDateFrom&&!filterDateTo)return f;
+      const filtered=f.rows.filter(r=>{const d=fmtDate(r[dh]||'');return(!filterDateFrom||d>=filterDateFrom)&&(!filterDateTo||d<=filterDateTo);});
+      return {...f,rows:filtered};
+    };
+    const nippo=filterRows(nippoRaw);
+    const shuho=filterRows(shuhoRaw);
+    const f0=nippo||shuho;
+    const badges=flist.map(f=>`<span class="merged-badge">${f.type==='nippo'?'日報':'週報'} ${f.rows.length}件</span>`).join('');
+
+    let inner='';
+
+    // 統計
+    if(nippo){
+      const soH=fh(nippo.headers,'shinkiOpp'),saH=fh(nippo.headers,'shinkiAch');
+      const koH=fh(nippo.headers,'kizonOpp'),kaH=fh(nippo.headers,'kizonAch');
+      const sum=h=>h?nippo.rows.reduce((a,r)=>a+(parseFloat(r[h])||0),0):0;
+      const so=sum(soH),sa=sum(saH),ko=sum(koH),ka=sum(kaH);
+      const sp=pct(sa,so),kp=pct(ka,ko);
+      const mH=fh(nippo.headers,'moti'),lH=fh(nippo.headers,'load');
+      const avg=h=>{if(!h)return null;const vs=nippo.rows.map(r=>parseFloat(r[h])).filter(v=>!isNaN(v));return vs.length?(vs.reduce((a,b)=>a+b,0)/vs.length).toFixed(1):null;};
+      const am=avg(mH),al=avg(lH);
+      const miniCards=[{k:'sns',l:'SNS累計'},{k:'kuchi',l:'口コミ累計'},{k:'shorei',l:'症例累計'},{k:'col',l:'コラム累計'},{k:'shinkan',l:'紹介新患数'}]
+        .map(n=>{const h=fh(nippo.headers,n.k);if(!h)return'';const s=nippo.rows.reduce((a,r)=>a+(parseFloat(r[h])||0),0);return`<div class="stat-card"><div class="stat-n">${s}</div><div class="stat-l">${n.l}</div></div>`;}).filter(Boolean);
+      const statCards=[
+        `<div class="stat-card"><div class="stat-n">${nippo.rows.length}</div><div class="stat-l">日報件数</div></div>`,
+        soH?`<div class="stat-card"><div class="stat-n">${sa}<span class="stat-pct">/${so}</span></div><div class="stat-l">新規回数券成約数</div>${sp!==null?`<div class="gauge"><div class="gauge-fill ${sp>=50?'gf-g':'gf-a'}" style="width:${sp}%"></div></div><div class="stat-l">${sp}%</div>`:''}</div>`:'',
+        koH?`<div class="stat-card"><div class="stat-n">${ka}<span class="stat-pct">/${ko}</span></div><div class="stat-l">既存回数券成約数</div>${kp!==null?`<div class="gauge"><div class="gauge-fill ${kp>=50?'gf-g':'gf-a'}" style="width:${kp}%"></div></div><div class="stat-l">${kp}%</div>`:''}</div>`:'',
+        am!==null?`<div class="stat-card"><div class="stat-n">${am}<span class="stat-pct">/5</span></div><div class="stat-l">モチベ平均</div><div class="gauge"><div class="gauge-fill gf-g" style="width:${parseFloat(am)/5*100}%"></div></div></div>`:'',
+        al!==null?`<div class="stat-card"><div class="stat-n">${al}<span class="stat-pct">/5</span></div><div class="stat-l">業務負荷平均</div><div class="gauge"><div class="gauge-fill" style="width:${parseFloat(al)/5*100}%"></div></div></div>`:'',
+        ...miniCards,
+      ].filter(Boolean).join('');
+      if(statCards) inner+=`<div class="stats-row" style="margin-bottom:.75rem">${statCards}</div>`;
+    }
+
+    // 週報の数値統計（モチベ・負荷・達成率）
+    if(shuho){
+      const mH2=fh(shuho.headers,'moti'),lH2=fh(shuho.headers,'load'),aH2=fh(shuho.headers,'achRate');
+      const avg2=h=>{if(!h)return null;const vs=shuho.rows.map(r=>parseFloat(r[h])).filter(v=>!isNaN(v));return vs.length?(vs.reduce((a,b)=>a+b,0)/vs.length).toFixed(1):null;};
+      const avgPct=h=>{if(!h)return null;const vs=shuho.rows.map(r=>parseFloat(String(r[h]||'').replace('%',''))).filter(v=>!isNaN(v));return vs.length?(vs.reduce((a,b)=>a+b,0)/vs.length).toFixed(1):null;};
+      const am2=avg2(mH2),al2=avg2(lH2),ar2=avgPct(aH2);
+      const shuhoCards=[
+        `<div class="stat-card"><div class="stat-n">${shuho.rows.length}</div><div class="stat-l">週報件数</div></div>`,
+        am2!==null?`<div class="stat-card"><div class="stat-n">${am2}<span class="stat-pct">/5</span></div><div class="stat-l">モチベ平均</div><div class="gauge"><div class="gauge-fill gf-g" style="width:${parseFloat(am2)/5*100}%"></div></div></div>`:'',
+        al2!==null?`<div class="stat-card"><div class="stat-n">${al2}<span class="stat-pct">/5</span></div><div class="stat-l">業務負荷平均</div><div class="gauge"><div class="gauge-fill" style="width:${parseFloat(al2)/5*100}%"></div></div></div>`:'',
+        ar2!==null?`<div class="stat-card"><div class="stat-n">${ar2}<span class="stat-pct">%</span></div><div class="stat-l">達成率平均</div><div class="gauge"><div class="gauge-fill gf-g" style="width:${Math.min(parseFloat(ar2),100)}%"></div></div></div>`:'',
+      ].filter(Boolean).join('');
+      if(shuhoCards) inner+=`<div class="section-header" style="margin-top:.5rem"><div class="section-title" style="font-size:.72rem">📋 週報 数値サマリー</div></div><div class="stats-row" style="margin-bottom:.75rem">${shuhoCards}</div>`;
+    }
+
+    // YNパネル（日報から）
+    if(nippo) inner+=buildYNPanel(nippo);
+    if(nippo) inner+=buildCheckboxPanel(nippo);
+
+    // テキストまとめ（日報＋週報両方）
+    const personRowsMap={};
+    if(nippo)personRowsMap[nippo.id]=nippo.rows;
+    if(shuho)personRowsMap[shuho.id]=shuho.rows;
+    inner+=buildTxtSummary(flist, personRowsMap);
+
+    // 週報まとめ
+    if(shuho) inner+=`<div style="margin-top:.75rem">${buildWeeklySummaryHTML(shuho)}</div>`;
+
+    // 個別ファイルへのリンク
+    const links=flist.map(f=>`<button class="btn btn-outline btn-sm" data-id="${esc(f.id)}" onclick="selectFileDirect(this.dataset.id)">${f.type==='nippo'?'日報':'週報'}詳細→</button>`).join('');
+
+    return `
+      <div style="background:var(--white);border-radius:var(--r);box-shadow:var(--sh);overflow:hidden;margin-bottom:1.25rem;">
+        <div style="background:linear-gradient(135deg,var(--b700),var(--b500));padding:.85rem 1.2rem;display:flex;align-items:center;gap:.85rem;flex-wrap:wrap;">
+          <div class="merged-avatar">${person.slice(0,1)}</div>
+          <div class="merged-info">
+            <div class="merged-name">${esc(person)}</div>
+            <div class="merged-badges">${badges}<span class="merged-badge">${roleLabel(f0.role)}</span></div>
+          </div>
+          <div style="margin-left:auto;display:flex;gap:.4rem;flex-wrap:wrap">${links}</div>
+        </div>
+        <div style="padding:1rem 1.1rem">${inner}</div>
+      </div>`;
+  }).join('');
+
+  const allDates=FILES.flatMap(f=>{const dh=fh(f.headers,'date');return f.rows.map(r=>fmtDate(r[dh]||''));}).filter(Boolean).sort();
+  const allMin=allDates[0]||'',allMax=allDates[allDates.length-1]||'';
+  const globalRangeBar=`<div class="date-range-bar">
+    <span>📅</span><label>開始</label>
+    <input type="date" id="gDateFrom" value="${filterDateFrom}" min="${allMin.replace(/\//g,'-')}" max="${allMax.replace(/\//g,'-')}">
+    <label>〜 終了</label>
+    <input type="date" id="gDateTo" value="${filterDateTo}" min="${allMin.replace(/\//g,'-')}" max="${allMax.replace(/\//g,'-')}">
+    <button class="btn btn-outline btn-sm" id="gApplyRange">適用</button>
+    <button class="btn btn-outline btn-sm" id="gClearRange">クリア</button>
+  </div>`;
+
+  document.getElementById('mainInner').innerHTML=`
+    <div class="meta-bar"><div><div class="meta-name">全員サマリー</div><div class="meta-sub">${FILES.length}ファイル · ${FILES.reduce((a,f)=>a+f.rows.length,0)}件</div></div></div>
+    ${globalRangeBar}
+    <div class="sum-grid">
+      <div class="sum-card"><div class="sum-head">🌟 印象に残った人 ランキング</div><div class="sum-body">${rankHTML}</div></div>
+      <div class="sum-card"><div class="sum-head">👥 読み込み中スタッフ</div><div class="sum-body">${personCards}</div></div>
+    </div>
+    <div style="margin-top:.5rem">${personSections}</div>`;
+
+  // 日付範囲フィルター
+  const ga=document.getElementById('gApplyRange');
+  const gc=document.getElementById('gClearRange');
+  if(ga)ga.addEventListener('click',()=>{
+    const from=document.getElementById('gDateFrom').value;
+    const to=document.getElementById('gDateTo').value;
+    filterDateFrom=from?from.replace(/-/g,'/'):'';
+    filterDateTo=to?to.replace(/-/g,'/'):'';
+    renderAll();
+  });
+  if(gc)gc.addEventListener('click',()=>{filterDateFrom='';filterDateTo='';renderAll();});
+}
+
+function selectFileDirect(id){activeId=id;filterDate='all';buildSidebar();render();}
+
+// ════════════════════════════════════════
+//  RENDER TEAM (チーム比較)
+// ════════════════════════════════════════
+function renderTeam(){
+  const TEAM_METRICS=[
+    {key:'moti',label:'モチベーション平均',max:5,unit:'/5',type:'avg',fileType:'shuho'},
+    {key:'load',label:'業務負荷平均',max:5,unit:'/5',type:'avg',fileType:'shuho'},
+    {key:'achRate',label:'達成率平均',max:100,unit:'%',type:'avgPct',fileType:'shuho'},
+    {key:'shinkiAch',label:'新規回数券 成約累計',max:null,unit:'枚',type:'sum',fileType:'nippo'},
+    {key:'shinkiRate',label:'新規回数券 成約率',max:100,unit:'%',type:'convRate',fileType:'nippo'},
+    {key:'kizonAch',label:'既存更新 成約累計',max:null,unit:'枚',type:'sum',fileType:'nippo'},
+    {key:'sns',label:'SNS投稿 累計',max:null,unit:'件',type:'sum',fileType:'nippo'},
+    {key:'kuchi',label:'口コミ声掛け 累計',max:null,unit:'件',type:'sum',fileType:'nippo'},
+  ];
+
+  const colors=['#2563b0','#0e7490','#6d28d9','#b07010','#c0392b','#1a7a4a'];
+
+  // Build data per person
+  const personMap={};
+  FILES.forEach(f=>{
+    if(!personMap[f.person])personMap[f.person]={person:f.person,role:f.role,files:[]};
+    personMap[f.person].files.push(f);
+  });
+  const persons=Object.values(personMap);
+
+  function getMetricValue(person,metric){
+    const flist=person.files.filter(f=>f.type===metric.fileType);
+    if(!flist.length)return null;
+    const f=flist[0];
+    if(metric.type==='avg'){
+      const h=fh(f.headers,metric.key);if(!h)return null;
+      const vals=f.rows.map(r=>parseFloat(r[h])).filter(v=>!isNaN(v));
+      return vals.length?(vals.reduce((a,b)=>a+b,0)/vals.length):null;
+    }
+    if(metric.type==='avgPct'){
+      const h=fh(f.headers,metric.key);if(!h)return null;
+      const vals=f.rows.map(r=>parseFloat(String(r[h]).replace('%',''))).filter(v=>!isNaN(v));
+      return vals.length?(vals.reduce((a,b)=>a+b,0)/vals.length):null;
+    }
+    if(metric.type==='sum'){
+      const h=fh(f.headers,metric.key);if(!h)return null;
+      return f.rows.reduce((a,r)=>a+(parseFloat(r[h])||0),0);
+    }
+    if(metric.type==='convRate'){
+      const oH=fh(f.headers,'shinkiOpp'),aH=fh(f.headers,'shinkiAch');if(!oH||!aH)return null;
+      const o=f.rows.reduce((a,r)=>a+(parseFloat(r[oH])||0),0);
+      const ac=f.rows.reduce((a,r)=>a+(parseFloat(r[aH])||0),0);
+      return o>0?Math.round(ac/o*100):null;
+    }
+    return null;
+  }
+
+  // Build tab buttons
+  const tabsHTML=TEAM_METRICS.map((m,i)=>`<button class="tc-tab${i===0?' on':''}" data-idx="${i}">${m.label}</button>`).join('');
+
+  // Build all metric grids (hidden except first)
+  const gridsHTML=TEAM_METRICS.map((metric,mi)=>{
+    const rows=persons.map((p,pi)=>{
+      const val=getMetricValue(p,metric);
+      if(val===null)return null;
+      return{person:p.person,role:p.role,val,color:colors[pi%colors.length]};
+    }).filter(Boolean);
+
+    if(!rows.length)return`<div class="tc-grid" data-metric="${mi}" style="display:none"><p class="tc-empty">このメトリクスのデータがありません</p></div>`;
+
+    const maxVal=metric.max||(Math.max(...rows.map(r=>r.val))||1);
+    const gridStyle=`grid-template-columns:140px 1fr 60px;`;
+
+    return`<div class="tc-grid" data-metric="${mi}" style="${mi===0?'':'display:none'}">
+      ${rows.sort((a,b)=>b.val-a.val).map(r=>`
+        <div class="tc-row" style="${gridStyle}">
+          <div class="tc-person" style="display:flex;align-items:center;gap:.45rem">
+            <div style="width:24px;height:24px;border-radius:50%;background:${roleColor(r.role)};display:flex;align-items:center;justify-content:center;font-size:.65rem;font-weight:700;color:#fff;flex-shrink:0">${r.person.slice(0,1)}</div>
+            <span>${esc(r.person)}</span>
+          </div>
+          <div class="tc-bar"><div class="tc-bar-fill" style="width:${Math.min(r.val/maxVal*100,100)}%;background:${r.color}"></div></div>
+          <div class="tc-val" style="color:${r.color}">${typeof r.val==='number'&&r.val%1!==0?r.val.toFixed(1):r.val}<span style="font-size:.65rem;color:var(--muted)">${metric.unit}</span></div>
+        </div>`).join('')}
+    </div>`;
+  }).join('');
+
+  document.getElementById('mainInner').innerHTML=`
+    <div class="meta-bar"><div><div class="meta-name">チーム比較ビュー</div><div class="meta-sub">${persons.length}名 · 指標横並び比較</div></div></div>
+    <div class="team-compare">
+      <div class="tc-head"><span class="tc-title">📊 指標別横並び比較</span></div>
+      <div class="tc-body">
+        <div class="tc-tabs" id="tcTabs">${tabsHTML}</div>
+        <div id="tcGrids">${gridsHTML}</div>
+      </div>
+    </div>
+    ${buildAllYNCompare(persons)}`;
+
+  // Tab click logic
+  document.getElementById('tcTabs').querySelectorAll('.tc-tab').forEach(tab=>{
+    tab.addEventListener('click',()=>{
+      document.querySelectorAll('.tc-tab').forEach(t=>t.classList.remove('on'));
+      tab.classList.add('on');
+      const idx=tab.dataset.idx;
+      document.querySelectorAll('.tc-grid').forEach(g=>g.style.display=g.dataset.metric===idx?'':'none');
+    });
+  });
+}
+
+function buildAllYNCompare(persons){
+  // Collect all YN headers across all nippo files
+  const nippoFiles=FILES.filter(f=>f.type==='nippo');
+  if(!nippoFiles.length)return'';
+
+  // Union of all YN headers
+  const ynSet=new Set();
+  nippoFiles.forEach(f=>{
+    f.headers.filter(h=>{
+      if(!h||h==='メールアドレス'||h==='タイムスタンプ')return false;
+      const vals=f.rows.map(r=>String(r[h]||'').trim()).filter(v=>v);
+      if(!vals.length)return false;
+      return vals.filter(v=>v==='はい'||v==='いいえ').length/vals.length>=0.5;
+    }).forEach(h=>ynSet.add(h));
+  });
+  if(!ynSet.size)return'';
+
+  const ynHeaders=[...ynSet];
+  const colors=['#2563b0','#0e7490','#6d28d9','#b07010','#c0392b','#1a7a4a'];
+
+  const rowsHTML=ynHeaders.map(h=>{
+    const lbl=h.replace(/【|】/g,'').replace(/\n.*$/,'').trim();
+    const cells=persons.map((p,pi)=>{
+      const f=p.files.find(f=>f.type==='nippo'&&fh(f.headers,[h]));
+      if(!f)return'<td class="r" style="color:var(--muted)">—</td>';
+      const vals=f.rows.map(r=>String(r[h]||'').trim());
+      const yes=vals.filter(v=>v==='はい').length;
+      const tot=vals.filter(v=>v==='はい'||v==='いいえ').length;
+      const p2=tot>0?Math.round(yes/tot*100):0;
+      const color=colors[pi%colors.length];
+      return`<td class="r"><span style="font-weight:700;color:${color}">${yes}</span><span style="color:var(--muted);font-size:.72rem">/${tot}</span><br><span style="font-size:.72rem;color:${color};font-family:'JetBrains Mono',monospace">${p2}%</span></td>`;
+    }).join('');
+    return`<tr><td style="font-size:.78rem;line-height:1.4;max-width:280px">${esc(lbl.length>40?lbl.slice(0,40)+'…':lbl)}</td>${cells}</tr>`;
+  }).join('');
+
+  const nippoPersons=persons.filter(p=>p.files.some(f=>f.type==='nippo'));
+  const thHeaders=nippoPersons.map((p,i)=>`<th style="color:${colors[i%colors.length]};text-align:right">${esc(p.person)}</th>`).join('');
+
+  return`<div class="yn-panel" style="margin-top:0">
+    <div class="yn-head"><span class="yn-title">✅ はい/いいえ チーム比較（日報）</span></div>
+    <div class="yn-body" style="overflow-x:auto">
+      <table class="yn-table">
+        <thead><tr><th>項目</th>${thHeaders}</tr></thead>
+        <tbody>${rowsHTML}</tbody>
+      </table>
+    </div>
+  </div>`;
+}
+
+// ════════════════════════════════════════
+//  RENDER MERGED (日報+週報統合)
+// ════════════════════════════════════════
+function renderMerged(person){
+  const flist=FILES.filter(f=>f.person===person);
+  const nippo=flist.find(f=>f.type==='nippo');
+  const shuho=flist.find(f=>f.type==='shuho');
+  const f0=nippo||shuho;
+  if(!f0)return;
+
+  let html=`<div class="merged-banner">
+    <div class="merged-avatar">${f0.person.slice(0,1)}</div>
+    <div class="merged-info">
+      <div class="merged-name">${esc(person)}</div>
+      <div class="merged-badges">
+        <span class="merged-badge">${roleLabel(f0.role)}</span>
+        ${nippo?`<span class="merged-badge">日報 ${nippo.rows.length}件</span>`:''}
+        ${shuho?`<span class="merged-badge">週報 ${shuho.rows.length}件</span>`:''}
+      </div>
+    </div>
+    <button class="btn btn-ghost btn-sm" onclick="genGrowthAnalysis()" style="margin-left:auto">📈 成長傾向分析</button>
+  </div>`;
+
+  if(nippo){
+    const soH=fh(nippo.headers,'shinkiOpp'),saH=fh(nippo.headers,'shinkiAch');
+    const koH=fh(nippo.headers,'kizonOpp'),kaH=fh(nippo.headers,'kizonAch');
+    const sum=h=>h?nippo.rows.reduce((a,r)=>a+(parseFloat(r[h])||0),0):0;
+    const so=sum(soH),sa=sum(saH),ko=sum(koH),ka=sum(kaH);
+    const sp=pct(sa,so),kp=pct(ka,ko);
+    if(soH||koH){
+      html+=`<div class="stats-row">
+        <div class="stat-card"><div class="stat-n">${nippo.rows.length}</div><div class="stat-l">日報件数</div></div>
+        ${soH?`<div class="stat-card"><div class="stat-n">${sa}<span class="stat-pct">/${so}</span></div><div class="stat-l">新規回数券成約数</div>${sp!==null?`<div class="gauge"><div class="gauge-fill ${sp>=50?'gf-g':'gf-a'}" style="width:${sp}%"></div></div><div class="stat-l">${sp}%</div>`:''}</div>`:''}
+        ${koH?`<div class="stat-card"><div class="stat-n">${ka}<span class="stat-pct">/${ko}</span></div><div class="stat-l">既存回数券成約数</div>${kp!==null?`<div class="gauge"><div class="gauge-fill ${kp>=50?'gf-g':'gf-a'}" style="width:${kp}%"></div></div><div class="stat-l">${kp}%</div>`:''}</div>`:''}
+      </div>`;
+    }
+    html+=buildYNPanel(nippo);
+  }
+  // mergedビューでは日付フィルター適用済みのrowsでテキストまとめ
+  const mergedRowsMap={};
+  if(nippo)mergedRowsMap[nippo.id]=nippo.rows;
+  if(shuho)mergedRowsMap[shuho.id]=shuho.rows;
+  html+=buildTxtSummary([nippo,shuho].filter(Boolean), mergedRowsMap);
+  if(shuho){
+    html+=`<div class="section-header"><div class="section-title">📊 週報まとめ</div></div>${buildWeeklySummaryHTML(shuho)}`;
+  }
+  html+=`<div id="growthArea"></div>`;
+  if(nippo){
+    const dateH=fh(nippo.headers,'date');
+    const dates=[...new Set(nippo.rows.map(r=>fmtDate(r[dateH]||'')))].filter(Boolean).sort().reverse();
+    const sortedRows=[...nippo.rows].sort((a,b)=>fmtDate(b[dateH]||'').localeCompare(fmtDate(a[dateH]||'')));
+    html+=`<div class="section-header"><div class="section-title">📅 日報 詳細</div></div>
+      <div class="date-scroll"><div class="date-tabs" id="mergedDateTabs">
+        <button class="dtab on" data-d="all">すべて</button>
+        ${dates.map(d=>`<button class="dtab" data-d="${d}">${d}</button>`).join('')}
+      </div></div>
+      <div class="cards-area" id="mergedCards">${sortedRows.map((row,i)=>buildCard(row,i,nippo,'mn')).join('')}</div>`;
+  }
+
+  document.getElementById('mainInner').innerHTML=html;
+
+  // Date tabs for merged
+  const tabsEl=document.getElementById('mergedDateTabs');
+  if(tabsEl&&nippo){
+    tabsEl.querySelectorAll('.dtab').forEach(btn=>{
+      btn.addEventListener('click',()=>{
+        tabsEl.querySelectorAll('.dtab').forEach(t=>t.classList.remove('on'));
+        btn.classList.add('on');
+        const d=btn.dataset.d;
+        const dateH=fh(nippo.headers,'date');
+        let rows=d==='all'?[...nippo.rows]:nippo.rows.filter(r=>fmtDate(r[dateH])===d);
+        rows.sort((a,b)=>fmtDate(b[dateH]||'').localeCompare(fmtDate(a[dateH]||'')));
+        document.getElementById('mergedCards').innerHTML=rows.map((row,i)=>buildCard(row,i,nippo,'mn')).join('');
+      });
+    });
+  }
+}
+
+// ════════════════════════════════════════
+//  RENDER FILE VIEW
+// ════════════════════════════════════════
+function render(){
+  const f=FILES.find(f=>f.id===activeId);
+  if(!f){document.getElementById('mainInner').innerHTML='<div class="empty"><div class="ico">📂</div><p>左のサイドバーからファイルを選択</p></div>';return;}
+
+  const dateH=fh(f.headers,'date');
+  const dates=[...new Set(f.rows.map(r=>fmtDate(r[dateH]||'')))].filter(Boolean).sort();
+  // 日付範囲フィルター適用
+  let rows=f.rows.filter(r=>{
+    const d=fmtDate(r[dateH]||'');
+    if(filterDate!=='all'&&d!==filterDate)return false;
+    if(filterDateFrom&&d<filterDateFrom)return false;
+    if(filterDateTo&&d>filterDateTo)return false;
+    return true;
+  });
+  rows.sort((a,b)=>{const da=fmtDate(a[dateH]),db=fmtDate(b[dateH]);return sortDir==='asc'?da.localeCompare(db):db.localeCompare(da);});
+
+  // 日付範囲バーHTML
+  const minDate=dates.length?dates[0]:'';
+  const maxDate=dates.length?dates[dates.length-1]:'';
+  const rangeBar=`<div class="date-range-bar">
+    <span>📅</span>
+    <label>開始</label>
+    <input type="date" id="dateFrom" value="${filterDateFrom}" min="${minDate.replace(/\//g,'-')}" max="${maxDate.replace(/\//g,'-')}">
+    <label>〜 終了</label>
+    <input type="date" id="dateTo" value="${filterDateTo}" min="${minDate.replace(/\//g,'-')}" max="${maxDate.replace(/\//g,'-')}">
+    <button class="btn btn-outline btn-sm" id="applyRange">適用</button>
+    <button class="btn btn-outline btn-sm" id="clearRange">クリア</button>
+    <span class="range-count" id="rangeCount">${rows.length}件 / 全${f.rows.length}件</span>
+  </div>`;
+
+  document.getElementById('mainInner').innerHTML=`
+    <div class="meta-bar">
+      <div><div class="meta-name">${esc(f.person)} <span style="font-size:.75rem;color:var(--muted);font-weight:400">${f.type==='nippo'?'日報':'週報'}</span></div>
+        <div class="meta-sub">${roleLabel(f.role)} · ${f.rows.length}件</div>
+      </div>
+      <div class="controls">
+        <select id="sortSel"><option value="desc">新しい順</option><option value="asc">古い順</option></select>
+      </div>
+    </div>
+    ${rangeBar}
+    ${buildStats(f, rows)}
+    ${buildYNPanel(f, rows)}
+    ${buildCheckboxPanel(f, rows)}
+    ${buildTxtSummary([f], {[f.id]: rows})}
+    ${f.type==='shuho'?`<div class="section-header"><div class="section-title">📊 週報まとめ</div></div>${buildWeeklySummaryHTML(f)}<div id="weeklySummaryAI"></div>`:''}
+    <div id="growthArea"></div>
+    <div class="section-header"><div class="section-title">📅 ${f.type==='nippo'?'日報':'週報'} 詳細</div></div>
+    <div class="date-scroll"><div class="date-tabs" id="mainDateTabs">
+      <button class="dtab${filterDate==='all'?' on':''}" data-d="all">すべて</button>
+      ${dates.map(d=>`<button class="dtab${d===filterDate?' on':''}" data-d="${d}">${d}</button>`).join('')}
+    </div></div>
+    <div class="cards-area" id="cardsArea">${rows.map((row,i)=>buildCard(row,i,f)).join('')||noData()}</div>
+    ${buildChartSection(f)}
+    ${buildMonthCompare(f)}
+    ${buildMemoPanel(f.person)}
+    <div class="card" style="margin-top:.75rem"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.5rem"><span class="card-title" style="margin:0">🤖 AI分析ノート</span><span style="font-size:.68rem;color:rgba(255,255,255,.3)">成長傾向・面談準備の結果を保存</span></div><div id="aiNoteWrap_${f.person.replace(/[^a-zA-Z0-9]/g,'_')}"></div></div>`;
+
+  document.getElementById('sortSel').value=sortDir;
+  document.getElementById('sortSel').addEventListener('change',e=>{sortDir=e.target.value;render();});
+
+  // 日付範囲フィルターのイベント
+  document.getElementById('applyRange').addEventListener('click',()=>{
+    const from=document.getElementById('dateFrom').value;
+    const to=document.getElementById('dateTo').value;
+    filterDateFrom=from?from.replace(/-/g,'/'):'';
+    filterDateTo=to?to.replace(/-/g,'/'):'';
+    filterDate='all';
+    render();
+  });
+  document.getElementById('clearRange').addEventListener('click',()=>{
+    filterDateFrom='';filterDateTo='';filterDate='all';
+    render();
+  });
+
+  document.getElementById('mainDateTabs').querySelectorAll('.dtab').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      document.querySelectorAll('#mainDateTabs .dtab').forEach(t=>t.classList.remove('on'));
+      btn.classList.add('on');
+      filterDate=btn.dataset.d;
+      const dateH2=fh(f.headers,'date');
+      let r2=filterDate==='all'?[...f.rows]:f.rows.filter(r=>fmtDate(r[dateH2])===filterDate);
+      r2.sort((a,b)=>{const da=fmtDate(a[dateH2]),db=fmtDate(b[dateH2]);return sortDir==='asc'?da.localeCompare(db):db.localeCompare(da);});
+      document.getElementById('cardsArea').innerHTML=r2.map((row,i)=>buildCard(row,i,f)).join('')||noData();
+    });
+  });
+  // グラフ初期化
+  initChartsForCurrent();
+}
+
+function noData(){return'<div class="empty"><div class="ico">📭</div><p>データなし</p></div>';}
+
+// ════════════════════════════════════════
+//  STATS
+// ════════════════════════════════════════
+function buildStats(f, filteredRows){
+  const rows=filteredRows||f.rows;
+  const {headers,role,type}=f;
+  if((role==='shijutsu'||role==='kairo')&&type==='nippo'){
+    const soH=fh(headers,'shinkiOpp'),saH=fh(headers,'shinkiAch'),koH=fh(headers,'kizonOpp'),kaH=fh(headers,'kizonAch');
+    const sum=h=>h?rows.reduce((a,r)=>a+(parseFloat(r[h])||0),0):0;
+    const so=sum(soH),sa=sum(saH),ko=sum(koH),ka=sum(kaH);
+    const sp=pct(sa,so),kp=pct(ka,ko);
+    const minis=[{k:'sns',l:'SNS'},{k:'kuchi',l:'口コミ'},{k:'shorei',l:'症例'},{k:'shinkan',l:'紹介新患数'}].filter(n=>fh(headers,n.k));
+    return`<div class="stats-row">
+      <div class="stat-card"><div class="stat-n">${rows.length}</div><div class="stat-l">提出件数</div></div>
+      ${soH?`<div class="stat-card"><div class="stat-n">${sa}<span class="stat-pct">/${so}</span></div><div class="stat-l">新規回数券成約数</div>${sp!==null?`<div class="gauge"><div class="gauge-fill ${sp>=50?'gf-g':'gf-a'}" style="width:${sp}%"></div></div><div class="stat-l">${sp}%</div>`:''}</div>`:''}
+      ${koH?`<div class="stat-card"><div class="stat-n">${ka}<span class="stat-pct">/${ko}</span></div><div class="stat-l">既存回数券成約数</div>${kp!==null?`<div class="gauge"><div class="gauge-fill ${kp>=50?'gf-g':'gf-a'}" style="width:${kp}%"></div></div><div class="stat-l">${kp}%</div>`:''}</div>`:''}
+      ${minis.map(n=>{const h=fh(headers,n.k);const s=rows.reduce((a,r)=>a+(parseFloat(r[h])||0),0);return`<div class="stat-card"><div class="stat-n">${s}</div><div class="stat-l">${n.l}累計</div></div>`;}).join('')}
+    </div>`;
+  }
+  const lH=fh(headers,'load'),mH=fh(headers,'moti');
+  const avg=h=>{if(!h)return null;const vs=rows.map(r=>parseFloat(r[h])).filter(v=>!isNaN(v));return vs.length?(vs.reduce((a,b)=>a+b,0)/vs.length).toFixed(1):null;};
+  const al=avg(lH),am=avg(mH);
+  return`<div class="stats-row">
+    <div class="stat-card"><div class="stat-n">${rows.length}</div><div class="stat-l">提出件数</div></div>
+    ${al!==null?`<div class="stat-card"><div class="stat-n">${al}<span class="stat-pct">/5</span></div><div class="stat-l">業務負荷平均</div><div class="gauge"><div class="gauge-fill" style="width:${parseFloat(al)/5*100}%"></div></div></div>`:''}
+    ${am!==null?`<div class="stat-card"><div class="stat-n">${am}<span class="stat-pct">/5</span></div><div class="stat-l">モチベ平均</div><div class="gauge"><div class="gauge-fill gf-g" style="width:${parseFloat(am)/5*100}%"></div></div></div>`:''}
+  </div>`;
+}
+
+// ════════════════════════════════════════
+//  YN PANEL
+// ════════════════════════════════════════
+function buildYNPanel(f, filteredRows){
+  const rows=filteredRows||f.rows;
+  const {headers}=f;
+  const ynH=headers.filter(h=>{
+    if(!h||h==='メールアドレス'||h==='タイムスタンプ')return false;
+    const vals=rows.map(r=>String(r[h]||'').trim()).filter(v=>v);
+    if(!vals.length)return false;
+    return vals.filter(v=>v==='はい'||v==='いいえ').length/vals.length>=0.5;
+  });
+  if(!ynH.length)return'';
+  const rowsHTML=ynH.map(h=>{
+    const vals=rows.map(r=>String(r[h]||'').trim());
+    const yes=vals.filter(v=>v==='はい').length;
+    const no=vals.filter(v=>v==='いいえ').length;
+    const tot=yes+no,p2=tot>0?Math.round(yes/tot*100):0;
+    const lbl=h.replace(/【|】/g,'').replace(/\n.*$/,'').trim();
+    return`<tr><td>${esc(lbl.length>42?lbl.slice(0,42)+'…':lbl)}</td><td class="r">${yes}</td><td class="r">${no}</td><td class="r">${tot}</td>
+      <td><div class="yn-bar-wrap"><div class="yn-bar"><div class="yn-bar-yes" style="width:${p2}%"></div></div><span class="yn-pct">${p2}%</span></div></td></tr>`;
+  }).join('');
+  return`<div class="yn-panel">
+    <div class="yn-head" onclick="this.nextElementSibling.classList.toggle('hidden')">
+      <span class="yn-title">✅ はい / いいえ 項目集計</span>
+      <span style="font-size:.73rem;color:rgba(255,255,255,.45)">${ynH.length}項目 ▾</span>
+    </div>
+    <div class="yn-body"><table class="yn-table">
+      <thead><tr><th>項目</th><th class="r">はい</th><th class="r">いいえ</th><th class="r">合計</th><th>はい率</th></tr></thead>
+      <tbody>${rowsHTML}</tbody>
+    </table></div>
+  </div>`;
+}
+
+// ════════════════════════════════════════
+//  CHECKBOX PANEL（チェックボックス集計）
+// ════════════════════════════════════════
+function buildCheckboxPanel(f, filteredRows){
+  const rows=filteredRows||f.rows;
+  const {headers}=f;
+  const cbH=fh(headers,'checkbox');
+  if(!cbH)return'';
+
+  // 全行のチェック済み項目を集計
+  const counts={};
+  let totalChecked=0, totalRows=0;
+  rows.forEach(r=>{
+    const v=String(r[cbH]||'').trim();
+    if(!v)return;
+    totalRows++;
+    // カンマ区切り or 単一項目
+    const items=v.split(/[,\u3001\n]/).map(s=>s.trim().replace(/^【|】$/g,'').trim()).filter(Boolean);
+    totalChecked+=items.length;
+    items.forEach(item=>{counts[item]=(counts[item]||0)+1;});
+  });
+
+  if(!Object.keys(counts).length)return'';
+
+  const sorted=Object.entries(counts).sort((a,b)=>b[1]-a[1]);
+  const maxCnt=sorted[0][1];
+
+  const rowsHTML=sorted.map(([item,cnt])=>{
+    const pct2=Math.round(cnt/rows.length*100);
+    const lbl=item.length>40?item.slice(0,40)+'…':item;
+    return`<tr>
+      <td style="font-size:.8rem;line-height:1.4">${esc(lbl)}</td>
+      <td class="r" style="font-weight:700;color:var(--b600)">${cnt}</td>
+      <td class="r" style="color:var(--muted)">${rows.length}</td>
+      <td><div class="yn-bar-wrap"><div class="yn-bar"><div class="yn-bar-yes" style="width:${cnt/maxCnt*100}%;background:var(--teal)"></div></div><span class="yn-pct">${pct2}%</span></div></td>
+    </tr>`;
+  }).join('');
+
+  const avgPerDay=totalRows>0?(totalChecked/totalRows).toFixed(1):0;
+
+  return`<div class="yn-panel">
+    <div class="yn-head" onclick="this.nextElementSibling.classList.toggle('hidden')" style="background:var(--teal)">
+      <span class="yn-title">☑️ チェックボックス 意識項目集計</span>
+      <span style="font-size:.73rem;color:rgba(255,255,255,.6)">${sorted.length}項目 · 1日平均${avgPerDay}チェック ▾</span>
+    </div>
+    <div class="yn-body"><table class="yn-table">
+      <thead><tr><th>意識した項目</th><th class="r">✓回数</th><th class="r">日数</th><th>実施率</th></tr></thead>
+      <tbody>${rowsHTML}</tbody>
+    </table></div>
+  </div>`;
+}
+
+// ════════════════════════════════════════
+//  TEXT SUMMARY
+// ════════════════════════════════════════
+function buildTxtSummary(flist, filteredRowsMap){
+  const collect=(f,key)=>{
+    const rows=filteredRowsMap?.[f.id]||f.rows;
+    return rows.map(r=>({date:fmtDate(r[fh(f.headers,'date')]||''),text:fv(r,f.headers,key),type:f.type})).filter(x=>!blank(x.text));
+  };
+  let th=[],ku=[],ik=[];
+  flist.forEach(f=>{th=th.concat(collect(f,'theme'));ku=ku.concat(collect(f,'kudos'));ik=ik.concat(collect(f,'ikusei'));});
+  if(!th.length&&!ku.length&&!ik.length)return'';
+  const sec=(title,items,cls)=>!items.length?'':`<div class="ts-sec-label">${title}</div>${items.map(x=>`<div class="ts-item ${cls}"><div class="ts-date">${x.date}${x.type==='nippo'?' · 日報':' · 週報'}</div>${esc(x.text)}</div>`).join('')}`;
+  return`<div class="txt-summary">
+    <div class="ts-head" onclick="this.nextElementSibling.classList.toggle('open')">
+      <span class="ts-title">📋 全体テキストまとめ（テーマ · 育成 · 承認）</span>
+      <span style="font-size:.73rem;color:rgba(255,255,255,.35)">▾ クリックで開く</span>
+    </div>
+    <div class="ts-body">${sec('🎯 テーマ・フィロソフィーシェア',th,'ttheme')}${sec('🌟 承認・賞賛ボード',ku,'tkudos')}${sec('💪 育成意識・行動',ik,'tikusei')}</div>
+  </div>`;
+}
+
+// ════════════════════════════════════════
+//  WEEKLY SUMMARY
+// ════════════════════════════════════════
+function buildWeeklySummaryHTML(f){
+  const {rows,headers}=f;
+  const dateH=fh(headers,'date');
+  const col=key=>rows.map(r=>({date:fmtDate(r[dateH]||''),text:fv(r,headers,key)})).filter(x=>!blank(x.text));
+  const evalItems=rows.map(r=>({date:fmtDate(r[dateH]||''),issue:fv(r,headers,'eval'),goal:fv(r,headers,'goal')})).filter(x=>!blank(x.issue)||!blank(x.goal));
+  const prevItems=rows.map(r=>({date:fmtDate(r[dateH]||''),prev:fv(r,headers,'prevTodo'),rate:fv(r,headers,'achRate')})).filter(x=>!blank(x.prev));
+  const doneItems=col('done'),issueItems=col('issue'),impItems=col('impressed'),freeItems=col('free');
+  const gp=evalItems.length?evalItems.map(x=>`<div class="goal-pair"><div class="gp-date">${x.date}</div>${!blank(x.issue)?`<div class="gp-lbl">▼ 課題・評価</div><div class="gp-issue">${esc(x.issue)}</div>`:''} ${!blank(x.goal)?`<div class="gp-lbl">→ 今週の目標</div><div class="gp-goal">${esc(x.goal)}</div>`:''}</div>`).join(''):'<p style="color:var(--muted);font-size:.82rem">データなし</p>';
+  const td=prevItems.length?prevItems.map(x=>`<div class="todo-row"><span class="todo-ck">✓</span><span class="todo-dt">${x.date}</span><span style="flex:1">${esc(x.prev)}</span>${!blank(x.rate)?`<span style="font-size:.73rem;font-family:'JetBrains Mono',monospace;color:var(--b600);font-weight:600">${x.rate}${String(x.rate).includes('%')?'':'%'}</span>`:''}</div>`).join(''):'<p style="color:var(--muted);font-size:.82rem">データなし</p>';
+  const list=(items,cls)=>items.length?items.map(x=>`<div class="sum-item ${cls}"><div class="sum-date">${x.date}</div>${esc(x.text)}</div>`).join(''):'<p style="color:var(--muted);font-size:.82rem">データなし</p>';
+  return`<div class="sum-grid">
+    <div class="sum-card"><div class="sum-head">📌 課題 → 目標</div><div class="sum-body">${gp}</div></div>
+    <div class="sum-card"><div class="sum-head">✅ やることリスト（前週→達成）</div><div class="sum-body">${td}</div></div>
+    <div class="sum-card"><div class="sum-head">🏆 今週の成果・完了タスク</div><div class="sum-body">${list(doneItems,'s-done')}</div></div>
+    <div class="sum-card"><div class="sum-head">⚠️ 課題・ブロッカー</div><div class="sum-body">${list(issueItems,'s-issue')}</div></div>
+    <div class="sum-card"><div class="sum-head">🌟 印象に残ったシェア</div><div class="sum-body">${list(impItems,'s-theme')}</div></div>
+    <div class="sum-card"><div class="sum-head">💬 要望・質問</div><div class="sum-body">${list(freeItems,'')}</div></div>
+  </div>`;
+}
+
+// ════════════════════════════════════════
+//  CARDS
+// ════════════════════════════════════════
+function buildCard(row,idx,f,prefix='c'){
+  const {headers,role,type}=f;
+  const dateH=fh(headers,'date');
+  const uid=`${prefix}-${f.id.replace(/[^a-zA-Z0-9]/g,'_')}-${idx}`;
+  const dateStr=fmtDate(row[dateH]||'');
+  let chips='';
+  const motiH=fh(headers,'moti');
+  if(motiH){const v=parseFloat(row[motiH]);if(!isNaN(v))chips+=`<span class="chip ${v>=4?'c-g':v<=2?'c-r':'c-a'}">やる気${v}</span>`;}
+  if(!blank(fv(row,headers,'kudos')))chips+=`<span class="chip c-a">🌟</span>`;
+  let body='';
+  if((role==='shijutsu'||role==='kairo')&&type==='nippo'){
+    const saH=fh(headers,'shinkiAch'),kaH=fh(headers,'kizonAch');
+    const sa=saH?parseFloat(row[saH])||0:0,ka=kaH?parseFloat(row[kaH])||0:0;
+    if(sa>0)chips+=`<span class="chip c-b">新規${sa}枚</span>`;
+    if(ka>0)chips+=`<span class="chip c-g">更新${ka}枚</span>`;
+    body=buildNippoBody(row,headers);
+  }else{body=buildTextBody(row,headers);}
+  return`<div class="day-card col" id="${uid}">
+    <div class="dc-head" onclick="this.closest('.day-card').classList.toggle('col')">
+      <div class="dc-date">📅 ${dateStr}</div><div class="dc-chips">${chips}</div><span class="caret">▾</span>
+    </div>
+    <div class="dc-body">${body}<div class="ai-card" id="ai-${uid}"><div class="ai-lbl">⚡ AI要点サマリー</div><div class="sk sk1"></div><div class="sk sk2"></div><div class="sk sk3"></div></div></div>
+  </div>`;
+}
+
+function buildNippoBody(row,headers){
+  const nums=[{k:'sns',l:'SNS'},{k:'kuchi',l:'口コミ'},{k:'shorei',l:'症例'},{k:'col',l:'コラム'},{k:'shinkan',l:'紹介新患数'}].filter(n=>{const h=fh(headers,n.k);return h&&row[h]!==''&&row[h]!==null;});
+  const soH=fh(headers,'shinkiOpp'),saH=fh(headers,'shinkiAch'),koH=fh(headers,'kizonOpp'),kaH=fh(headers,'kizonAch');
+  const so=soH?parseFloat(row[soH])||0:0,sa=saH?parseFloat(row[saH])||0:0;
+  const ko=koH?parseFloat(row[koH])||0:0,ka=kaH?parseFloat(row[kaH])||0:0;
+  const sp=pct(sa,so),kp=pct(ka,ko);
+  const numHTML=nums.length?`<div class="sec-block"><div class="sec-lbl"><span class="sec-dot" style="background:var(--b500)"></span>数値実績</div><div class="metrics">${nums.map(n=>{const h=fh(headers,n.k);return`<div class="met"><div class="met-n">${row[h]}</div><div class="met-l">${n.l}</div></div>`;}).join('')}</div></div>`:'';
+  const rateHTML=(soH||koH)?`<div class="sec-block"><div class="sec-lbl"><span class="sec-dot" style="background:var(--b400)"></span>回数券成約率</div>${soH?`<div style="margin-bottom:.45rem"><div class="sec-lbl" style="margin-bottom:.18rem">新規</div><div style="display:flex;align-items:center;gap:.38rem"><div class="met" style="flex:0;min-width:44px"><div class="met-n">${so}</div><div class="met-l">提案</div></div><span style="color:var(--muted)">→</span><div class="met" style="flex:0;min-width:44px"><div class="met-n">${sa}</div><div class="met-l">成約</div></div><div class="met" style="background:${sp!==null&&sp>=50?'var(--green-bg)':'var(--red-bg)'};color:${sp!==null&&sp>=50?'var(--green)':'var(--red)'}"><div class="met-n" style="font-size:.95rem">${sp!==null?sp+'%':'—'}</div><div class="met-l">成約率</div></div></div></div>`:''}${koH?`<div><div class="sec-lbl" style="margin-bottom:.18rem">既存</div><div style="display:flex;align-items:center;gap:.38rem"><div class="met" style="flex:0;min-width:44px"><div class="met-n">${ko}</div><div class="met-l">機会</div></div><span style="color:var(--muted)">→</span><div class="met" style="flex:0;min-width:44px"><div class="met-n">${ka}</div><div class="met-l">成約</div></div><div class="met" style="background:${kp!==null&&kp>=50?'var(--green-bg)':'var(--red-bg)'};color:${kp!==null&&kp>=50?'var(--green)':'var(--red)'}"><div class="met-n" style="font-size:.95rem">${kp!==null?kp+'%':'—'}</div><div class="met-l">更新率</div></div></div></div>`:''}</div>`:'';
+  const ynKeys=['売上向上','院の課題','ペルソナ','院全体のKPI','院全体の状況','院長のビジョン','報連相','売上・顧客満足','本日のKPI','後輩・スタッフの行動','ケア品質','リピート','カルテ情報','技術指導','第２象限'];
+  const ynItems=ynKeys.map(k=>{const h=headers.find(hh=>hh&&hh.includes(k));return h&&row[h]?{h,v:row[h],l:h.replace(/【|】/g,'').replace(/\n.*/,'').slice(0,22)}:null;}).filter(Boolean);
+  // チェックボックス方式（新フォーマット）
+  const cbH2=fh(headers,'checkbox');
+  const cbComH=fh(headers,'checkboxComment');
+  const cbVal=cbH2?String(row[cbH2]||'').trim():'';
+  const cbItems=cbVal?cbVal.split(/[,\u3001\n]/).map(s=>s.trim().replace(/^【|】$/g,'').trim()).filter(Boolean):[];
+  const cbComment=cbComH?String(row[cbComH]||'').trim():'';
+  const cbHTML=cbItems.length?`<div class="sec-block"><div class="sec-lbl"><span class="sec-dot" style="background:var(--teal)"></span>本日の意識項目（${cbItems.length}項目✓）</div><div class="yn-list">${cbItems.map(item=>`<div class="yn-row"><span class="yn-b yn-yes" style="background:#ecfeff;color:var(--teal)">✓</span><span>${esc(item)}</span></div>`).join('')}${cbComment&&!blank(cbComment)?`<div class="txt-block hl" style="margin-top:.38rem"><div class="txt-lbl">コメント</div>${esc(cbComment)}</div>`:''}</div></div>`:'';
+  const ynHTML=cbHTML||(ynItems.length?`<div class="sec-block"><div class="sec-lbl"><span class="sec-dot" style="background:var(--green)"></span>行動チェック</div><div class="yn-list">${ynItems.map(n=>{const y=n.v==='はい';return`<div class="yn-row"><span class="yn-b ${y?'yn-yes':'yn-no'}">${y?'YES':'NO'}</span><span>${esc(n.l)}</span></div>`;}).join('')}</div></div>`:'');
+  const texts=[{k:'ikusei',l:'育成シェア',cls:'ikusei'},{k:'joui',l:'情意評価',cls:''},{k:'theme',l:'テーマ・フィロソフィー',cls:'theme-c'},{k:'kudos',l:'🌟承認',cls:'kudos'}];
+  const tc=texts.map(t=>{const v=fv(row,headers,t.k);return blank(v)?'': `<div class="txt-block ${t.cls}"><div class="txt-lbl">${t.l}</div>${esc(v)}</div>`;}).join('');
+  return`<div class="sec-grid">${numHTML}${rateHTML}${ynHTML}${tc?`<div class="sec-block full"><div class="sec-lbl"><span class="sec-dot" style="background:var(--b400)"></span>コメント</div>${tc}</div>`:''}</div>`;
+}
+
+function buildTextBody(row,headers){
+  const motiH=fh(headers,'moti'),loadH=fh(headers,'load');
+  const mv=motiH?parseFloat(row[motiH]):NaN,lv=loadH?parseFloat(row[loadH]):NaN;
+  const bikkaH=fh(headers,'bikka'),achH=fh(headers,'achRate');
+  const scoreHTML=(!isNaN(mv)||!isNaN(lv))?`<div class="sec-block"><div class="sec-lbl"><span class="sec-dot" style="background:var(--b500)"></span>コンディション</div>${!isNaN(mv)?`<div style="margin-bottom:.45rem"><div class="sec-lbl" style="margin-bottom:.2rem">モチベーション ${mv}/5</div><div class="score-bar-wrap"><div class="score-bar"><div class="score-bar-fill" style="width:${mv/5*100}%;background:${mv>=4?'var(--green)':mv<=2?'var(--red)':'var(--amber)'}"></div></div><span style="font-family:'JetBrains Mono',monospace;font-size:.76rem;font-weight:600">${mv}</span></div></div>`:''}${!isNaN(lv)?`<div><div class="sec-lbl" style="margin-bottom:.2rem">業務負荷 ${lv}/5</div><div class="score-bar-wrap"><div class="score-bar"><div class="score-bar-fill" style="width:${lv/5*100}%;background:${lv>=4?'var(--red)':lv<=2?'var(--green)':'var(--amber)'}"></div></div><span style="font-family:'JetBrains Mono',monospace;font-size:.76rem;font-weight:600">${lv}</span></div></div>`:''}${achH&&!blank(row[achH])?`<div style="margin-top:.38rem"><div class="sec-lbl" style="margin-bottom:.08rem">前週達成率</div><span style="font-weight:700;font-family:'JetBrains Mono',monospace">${row[achH]}${String(row[achH]).includes('%')?'':'%'}</span></div>`:''}${bikkaH&&row[bikkaH]?`<div style="margin-top:.35rem"><span class="yn-b ${row[bikkaH]==='はい'?'yn-yes':'yn-no'}">${row[bikkaH]==='はい'?'YES':'NO'}</span> 院内美化</div>`:''}</div>`:'';
+  const blocks=[{k:'eval',l:'先週の評価・課題',cls:''},{k:'goal',l:'今週の目標',cls:'hl'},{k:'prevTodo',l:'先週のやることリスト',cls:''},{k:'done',l:'今週の成果・完了タスク',cls:''},{k:'issue',l:'課題・ブロッカー',cls:''},{k:'todo',l:'今週のやることリスト',cls:''},{k:'ikusei',l:'育成意識シェア',cls:'ikusei'},{k:'joui',l:'情意評価シェア',cls:''},{k:'theme',l:'テーマ・フィロソフィー',cls:'theme-c'},{k:'kudos',l:'🌟承認・賞賛',cls:'kudos'},{k:'impressed',l:'印象に残った人',cls:''},{k:'free',l:'要望・質問',cls:''}];
+  const tc=blocks.map(b=>{const v=fv(row,headers,b.k);return blank(v)?'':`<div class="txt-block ${b.cls}"><div class="txt-lbl">${b.l}</div>${esc(v)}</div>`;}).join('');
+  return`<div class="sec-grid">${scoreHTML}${tc?`<div class="sec-block" style="grid-column:1/-1"><div class="sec-lbl"><span class="sec-dot" style="background:var(--b400)"></span>記述内容</div>${tc}</div>`:''}</div>`;
+}
+
+// ════════════════════════════════════════
+//  AI — 要点生成
+// ════════════════════════════════════════
+async function genAllCards(){
+  const f=FILES.find(f=>f.id===activeId);
+  if(!f)return;
+  const btn=document.getElementById('btnAiAll');
+  btn.disabled=true;btn.innerHTML='<span class="spin"></span>';
+  document.querySelectorAll('.day-card.col').forEach(c=>c.classList.remove('col'));
+  const dateH=fh(f.headers,'date');
+  let rows=filterDate==='all'?[...f.rows]:f.rows.filter(r=>fmtDate(r[dateH])===filterDate);
+  rows.sort((a,b)=>{const da=fmtDate(a[dateH]),db=fmtDate(b[dateH]);return sortDir==='asc'?da.localeCompare(db):db.localeCompare(da);});
+  for(let i=0;i<rows.length;i++)await genOneCard(rows[i],i,f);
+  btn.disabled=false;btn.innerHTML='✨ AI要点生成';
+}
+
+async function genOneCard(row,idx,f,prefix='c'){
+  const uid=`${prefix}-${f.id.replace(/[^a-zA-Z0-9]/g,'_')}-${idx}`;
+  const block=document.getElementById(`ai-${uid}`);
+  if(!block)return;
+  const entries=Object.entries(row).filter(([k,v])=>v&&v!==''&&v!=='0'&&!blank(v)).map(([k,v])=>`${k}：${v}`).join('\n');
+  const rn={uketuke:'受付',kairo:'カイロプラクター',shijutsu:'施術者',other:'スタッフ'}[f.role]||'スタッフ';
+  const prompt=`${rn}の${f.type==='nippo'?'日報':'週報'}データ。\n\n${entries}\n\n上司向け3点（各35字以内）。${f.role==='uketuke'?'業務・育成・コンディション観点。':'数字成果・育成・翌日アクション観点。'}\nJSON形式のみ: {"points":[{"icon":"📈","text":""},{"icon":"⚠️","text":""},{"icon":"🎯","text":""}]}`;
+  try{
+    const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','anthropic-dangerous-direct-browser-calls':'true','x-api-key':getApiKey()},body:JSON.stringify({model:'claude-sonnet-4-5',max_tokens:400,messages:[{role:'user',content:prompt}]})});
+    const data=await res.json();
+    const text=(data.content||[]).map(c=>c.text||'').join('').replace(/```json|```/g,'').trim();
+    const pts=JSON.parse(text).points||[];
+    block.innerHTML=`<div class="ai-lbl">⚡ AI要点サマリー</div><ul class="ai-pts">${pts.map(p=>`<li><span>${p.icon}</span><span>${esc(p.text)}</span></li>`).join('')}</ul>`;
+  }catch{block.innerHTML=`<div class="ai-lbl">⚡ AI要点サマリー</div><p style="font-size:.75rem;opacity:.4">生成できませんでした</p>`;}
+}
+
+async function genWeeklySummary(){
+  const f=FILES.find(f=>f.id===activeId);if(!f)return;
+  const btn=document.getElementById('btnAiSum');btn.disabled=true;btn.innerHTML='<span class="spin"></span>';
+  const area=document.getElementById('weeklySummaryAI');
+  if(area)area.innerHTML=`<div class="sum-card" style="margin-top:.85rem"><div class="sum-head">🤖 AI総合分析</div><div class="sum-body"><div class="sk sk1"></div><div class="sk sk2"></div><div class="sk sk3"></div></div></div>`;
+  const dateH=fh(f.headers,'date');
+  const allText=f.rows.map(r=>{const d=fmtDate(r[dateH]||'');const imp=Object.entries(r).filter(([k,v])=>v&&v!==''&&!blank(v)).map(([k,v])=>`${k}：${v}`).join('/');return`[${d}] ${imp}`;}).join('\n');
+  const rn={uketuke:'受付',kairo:'カイロプラクター',shijutsu:'施術者',other:'スタッフ'}[f.role]||'スタッフ';
+  const prompt=`${rn}の${f.type==='nippo'?'日報':'週報'}データ（複数）。\n\n${allText}\n\n上司向け5点サマリー（各2文以内）。\nJSON形式のみ: {"points":[{"icon":"📊","label":"総合実績","text":""},{"icon":"💪","label":"特に良かった点","text":""},{"icon":"⚠️","label":"課題・改善点","text":""},{"icon":"👥","label":"育成・チーム関与","text":""},{"icon":"🎯","label":"来週への提言","text":""}]}`;
+  try{
+    const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','anthropic-dangerous-direct-browser-calls':'true','x-api-key':getApiKey()},body:JSON.stringify({model:'claude-sonnet-4-5',max_tokens:800,messages:[{role:'user',content:prompt}]})});
+    const data=await res.json();
+    const text=(data.content||[]).map(c=>c.text||'').join('').replace(/```json|```/g,'').trim();
+    const pts=JSON.parse(text).points||[];
+    if(area)area.innerHTML=`<div class="sum-card" style="margin-top:.85rem"><div class="sum-head">🤖 AI総合分析</div><div class="sum-body">${pts.map(p=>`<div class="sum-item"><div style="font-size:.65rem;font-weight:700;color:var(--muted);margin-bottom:.15rem">${p.icon} ${p.label}</div>${esc(p.text)}</div>`).join('')}</div></div>`;
+  }catch{if(area)area.innerHTML='';}
+  btn.disabled=false;btn.innerHTML='📊 AI分析';
+}
+
+// ════════════════════════════════════════
+//  AI — 成長傾向分析
+// ════════════════════════════════════════
+function genGrowthAnalysis(){
+  const btn=document.getElementById('btnAiGrowth');
+  btn.disabled=true;btn.innerHTML='<span class="spin"></span>';
+
+  let targetFiles=[];
+  if(activeId&&activeId.startsWith('__merged__')){
+    const idx2=parseInt(activeId.replace('__merged__',''));
+    const person2=mergedIndex[idx2];
+    targetFiles=FILES.filter(f=>f.person===person2);
+  }else{
+    const f=FILES.find(f=>f.id===activeId);
+    if(f)targetFiles=[f];
+  }
+  if(!targetFiles.length){btn.disabled=false;btn.innerHTML='📈 成長傾向';return;}
+  if(!getApiKey()){btn.disabled=false;btn.innerHTML='📈 成長傾向';openAiModal('🔑 APIキーが必要','<p style="padding:1rem;color:#fbbf24">ヘッダーの🔑入力欄にAPIキーを入力してください。</p>');return;}
+
+  openAiModal('📈 成長傾向分析','<div class="ai-growth"><div class="ag-header">分析中... <span class="spin"></span></div><div class="sk sk1"></div><div class="sk sk2"></div><div class="sk sk3"></div></div>');
+
+  const allData=targetFiles.map(f=>{
+    const dateH=fh(f.headers,'date');
+    const motiH=fh(f.headers,'moti'),loadH=fh(f.headers,'load');
+    const soH=fh(f.headers,'shinkiOpp'),saH=fh(f.headers,'shinkiAch');
+    const koH=fh(f.headers,'kizonOpp'),kaH=fh(f.headers,'kizonAch');
+    const cbH=fh(f.headers,'checkbox'),themeH=fh(f.headers,'theme'),ikuseiH=fh(f.headers,'ikusei');
+    const sorted=[...f.rows].sort((a,b)=>fmtDate(a[dateH]||'').localeCompare(fmtDate(b[dateH]||''))).slice(-20);
+    return sorted.map(r=>{
+      const d=fmtDate(r[dateH]||'');
+      const parts=[];
+      if(motiH&&r[motiH])parts.push('モチベ:'+r[motiH]);
+      if(loadH&&r[loadH])parts.push('負荷:'+r[loadH]);
+      if(soH&&saH)parts.push('新規成約:'+( r[saH]||0)+'/'+( r[soH]||0));
+      if(koH&&kaH)parts.push('既存更新:'+( r[kaH]||0)+'/'+( r[koH]||0));
+      if(cbH&&r[cbH]){const its=String(r[cbH]).split(/[,\u3001\n]/).filter(Boolean);parts.push('チェック'+its.length+'項目');}
+      if(themeH&&r[themeH]&&!blank(r[themeH]))parts.push('テーマ:'+String(r[themeH]).slice(0,40));
+      if(ikuseiH&&r[ikuseiH]&&!blank(r[ikuseiH]))parts.push('育成:'+String(r[ikuseiH]).slice(0,40));
+      return'['+(f.type==='nippo'?'日報':'週報')+' '+d+'] '+parts.join(' | ');
+    }).join('\n');
+  }).join('\n\n');
+
+  const person=targetFiles[0].person;
+  const role={uketuke:'受付',kairo:'カイロプラクター',shijutsu:'施術者',other:'スタッフ'}[targetFiles[0].role]||'スタッフ';
+  const prompt=person+'（'+role+'）の時系列データです。\n\n'+allData+'\n\n以下の観点でこの人物の成長傾向を分析してください。上司が面談や育成に使うためのレポートです。\nJSON形式のみで返答: {"sections":[{"icon":"📈","label":"数値・行動の変化","text":""},{"icon":"💡","label":"強みと成長ポイント","text":""},{"icon":"⚠️","label":"停滞・課題の傾向","text":""},{"icon":"🎯","label":"次のステージへの提言","text":""},{"icon":"💬","label":"上司へのメモ","text":""}]}';
+
+  apiCall(
+    {model:'claude-sonnet-4-5',max_tokens:1200,messages:[{role:'user',content:prompt}]},
+    function(data){
+      try{
+        const text=(data.content||[]).map(c=>c.text||'').join('').replace(/```json|```/g,'').trim();
+        const secs=JSON.parse(text).sections||[];
+        const growthText=secs.map(s=>s.icon+' '+s.label+'\n'+s.text).join('\n\n');
+        openAiModal('📈 成長傾向分析 — '+person,
+          '<div class="ai-growth">'+
+          '<div class="ag-header">📈 '+esc(person)+' の成長傾向分析</div>'+
+          '<div class="ag-sections">'+
+          secs.map(s=>'<div class="ag-section"><div class="ag-sec-label">'+s.icon+' '+esc(s.label)+'</div><div class="ag-text">'+esc(s.text)+'</div></div>').join('')+
+          '</div></div>');
+        addSaveButtonToModal(person,'📈 成長傾向分析 ('+new Date().toLocaleDateString('ja-JP')+')',growthText);
+      }catch(e){
+        openAiModal('📈 成長傾向分析','<p style="padding:1rem;color:rgba(255,255,255,.5)">解析エラー: '+esc(String(e))+'</p>');
+      }
+      btn.disabled=false;btn.innerHTML='📈 成長傾向';
+    },
+    function(err){
+      openAiModal('📈 成長傾向分析','<p style="padding:1rem;color:rgba(255,255,255,.5)">'+esc(err)+'</p>');
+      btn.disabled=false;btn.innerHTML='📈 成長傾向';
+    }
+  );
+}
+
+// ════════════════════════════════════════
+//  CHART (推移グラフ・純Canvas実装)
+// ════════════════════════════════════════
+function buildChartSection(f) {
+  const id = 'chart_' + f.id.replace(/[^a-zA-Z0-9]/g,'_');
+  return `<div class="chart-wrap">
+    <div class="chart-head">
+      <span>📈 推移グラフ</span>
+      <div class="chart-tabs" id="ctabs_${id}">
+        <button class="chart-tab on" data-metric="moti">モチベ</button>
+        <button class="chart-tab" data-metric="load">業務負荷</button>
+        <button class="chart-tab" data-metric="shinki">新規成約率</button>
+        <button class="chart-tab" data-metric="kizon">既存更新率</button>
+        <button class="chart-tab" data-metric="checkbox">チェック数</button>
+      </div>
+    </div>
+    <div class="chart-body" style="overflow-x:auto">
+      <canvas id="${id}" height="130" style="min-width:300px;width:100%"></canvas>
+    </div>
+  </div>`;
+}
+
+function drawCanvasChart(canvas, labels, values, opts){
+  const ctx = canvas.getContext('2d');
+  const W = canvas.offsetWidth || 600;
+  canvas.width = W;
+  const H = canvas.height;
+  const pad = {t:20,r:20,b:38,l:42};
+  const cw = W - pad.l - pad.r;
+  const ch = H - pad.t - pad.b;
+  ctx.clearRect(0,0,W,H);
+
+  const valid = values.filter(v=>v!==null&&!isNaN(v));
+  if(!valid.length){
+    ctx.fillStyle='#64748b';ctx.font='13px sans-serif';ctx.textAlign='center';
+    ctx.fillText('データなし',W/2,H/2);return;
+  }
+  const minV = opts.min!==undefined ? opts.min : Math.min(...valid)*0.95;
+  const maxV = opts.max!==undefined ? opts.max : Math.max(...valid)*1.05 || 1;
+  const range = maxV - minV || 1;
+
+  const xOf = i => pad.l + (labels.length>1 ? i/(labels.length-1)*cw : cw/2);
+  const yOf = v => pad.t + ch - (v-minV)/range*ch;
+
+  // グリッド
+  ctx.strokeStyle='#e2e8f0';ctx.lineWidth=1;
+  for(let i=0;i<=4;i++){
+    const y=pad.t+ch/4*i;
+    ctx.beginPath();ctx.moveTo(pad.l,y);ctx.lineTo(pad.l+cw,y);ctx.stroke();
+    const val=(maxV-(range/4*i)).toFixed(1);
+    ctx.fillStyle='#94a3b8';ctx.font='10px sans-serif';ctx.textAlign='right';
+    ctx.fillText(val,pad.l-5,y+4);
+  }
+
+  // X軸ラベル
+  ctx.fillStyle='#64748b';ctx.font='10px sans-serif';ctx.textAlign='center';
+  const step=Math.ceil(labels.length/8);
+  labels.forEach((l,i)=>{if(i%step===0||i===labels.length-1)ctx.fillText(l.slice(5),xOf(i),H-8);});
+
+  // エリア
+  ctx.beginPath();
+  let first=true;
+  values.forEach((v,i)=>{if(v===null||isNaN(v))return;if(first){ctx.moveTo(xOf(i),yOf(v));first=false;}else ctx.lineTo(xOf(i),yOf(v));});
+  const lastValidIdx=values.reduceRight((a,v,i)=>a===-1&&v!==null?i:a,-1);
+  if(lastValidIdx>=0){
+    ctx.lineTo(xOf(lastValidIdx),pad.t+ch);
+    ctx.lineTo(xOf(values.findIndex(v=>v!==null)),pad.t+ch);
+    ctx.closePath();
+    ctx.fillStyle=opts.color+'28';ctx.fill();
+  }
+
+  // ライン
+  ctx.beginPath();first=true;
+  values.forEach((v,i)=>{if(v===null||isNaN(v))return;if(first){ctx.moveTo(xOf(i),yOf(v));first=false;}else ctx.lineTo(xOf(i),yOf(v));});
+  ctx.strokeStyle=opts.color;ctx.lineWidth=2.5;ctx.lineJoin='round';ctx.stroke();
+
+  // ドット
+  values.forEach((v,i)=>{
+    if(v===null||isNaN(v))return;
+    ctx.beginPath();ctx.arc(xOf(i),yOf(v),4,0,Math.PI*2);
+    ctx.fillStyle='#fff';ctx.fill();
+    ctx.strokeStyle=opts.color;ctx.lineWidth=2;ctx.stroke();
+  });
+}
+
+function initChart(f) {
+  const id = 'chart_' + f.id.replace(/[^a-zA-Z0-9]/g,'_');
+  const el = document.getElementById(id);
+  if(!el) return;
+
+  const dateH = fh(f.headers,'date');
+  const sorted = [...f.rows].filter(r=>fmtDate(r[dateH]||'')).sort((a,b)=>fmtDate(a[dateH]).localeCompare(fmtDate(b[dateH])));
+  const labels = sorted.map(r=>fmtDate(r[dateH]));
+
+  const ctabs = document.getElementById('ctabs_'+id);
+  if(!ctabs) return;
+
+  function getDataset(metric) {
+    switch(metric){
+      case 'moti': {const h=fh(f.headers,'moti');return{data:sorted.map(r=>h?parseFloat(r[h])||null:null),color:'#2563b0',min:0,max:5};}
+      case 'load': {const h=fh(f.headers,'load');return{data:sorted.map(r=>h?parseFloat(r[h])||null:null),color:'#b07010',min:0,max:5};}
+      case 'shinki': {
+        const oH=fh(f.headers,'shinkiOpp'),aH=fh(f.headers,'shinkiAch');
+        return{data:sorted.map(r=>{const o=oH?parseFloat(r[oH])||0:0;const a=aH?parseFloat(r[aH])||0:0;return o>0?Math.round(a/o*100):null;}),color:'#1a7a4a',min:0,max:100};
+      }
+      case 'kizon': {
+        const oH=fh(f.headers,'kizonOpp'),aH=fh(f.headers,'kizonAch');
+        return{data:sorted.map(r=>{const o=oH?parseFloat(r[oH])||0:0;const a=aH?parseFloat(r[aH])||0:0;return o>0?Math.round(a/o*100):null;}),color:'#6d28d9',min:0,max:100};
+      }
+      case 'checkbox': {
+        const cbH=fh(f.headers,'checkbox');
+        return{data:sorted.map(r=>{const v=cbH?String(r[cbH]||'').trim():'';return v?v.split(/[,\u3001\n]/).filter(Boolean).length:null;}),color:'#0e7490',min:0};
+      }
+    }
+    return null;
+  }
+
+  function drawMetric(metric){
+    const ds=getDataset(metric);
+    if(!ds)return;
+    // canvasサイズをコンテナに合わせる
+    el.width=el.parentElement.clientWidth||600;
+    drawCanvasChart(el,labels,ds.data,ds);
+  }
+
+  drawMetric('moti');
+  ctabs.querySelectorAll('.chart-tab').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      ctabs.querySelectorAll('.chart-tab').forEach(t=>t.classList.remove('on'));
+      btn.classList.add('on');
+      drawMetric(btn.dataset.metric);
+    });
+  });
+}
+
+function initChartsForCurrent(){
+  const f=FILES.find(f=>f.id===activeId);
+  if(f) setTimeout(()=>initChart(f),150);
+}
+
+// ════════════════════════════════════════
+//  MONTH COMPARE (複数月比較)
+// ════════════════════════════════════════
+
+function buildMonthCompare(f) {
+  const dateH = fh(f.headers,'date');
+  if(!dateH) return '';
+
+  // 月ごとにグループ化
+  const monthMap = {};
+  f.rows.forEach(r=>{
+    const d = fmtDate(r[dateH]||'');
+    if(!d) return;
+    const ym = d.slice(0,7); // "2026/03"
+    if(!monthMap[ym]) monthMap[ym]=[];
+    monthMap[ym].push(r);
+  });
+  const months = Object.keys(monthMap).sort();
+  if(months.length < 2) return '';
+
+  const motiH=fh(f.headers,'moti'), loadH=fh(f.headers,'load');
+  const soH=fh(f.headers,'shinkiOpp'), saH=fh(f.headers,'shinkiAch');
+  const koH=fh(f.headers,'kizonOpp'), kaH=fh(f.headers,'kizonAch');
+  const cbH=fh(f.headers,'checkbox');
+
+  const metrics = [];
+  if(motiH) metrics.push({label:'モチベ平均',fn:rows=>{const vs=rows.map(r=>parseFloat(r[motiH])).filter(v=>!isNaN(v));return vs.length?(vs.reduce((a,b)=>a+b,0)/vs.length).toFixed(1):'-';}});
+  if(loadH) metrics.push({label:'業務負荷平均',fn:rows=>{const vs=rows.map(r=>parseFloat(r[loadH])).filter(v=>!isNaN(v));return vs.length?(vs.reduce((a,b)=>a+b,0)/vs.length).toFixed(1):'-';}});
+  if(soH&&saH) metrics.push({label:'新規成約率',fn:rows=>{const o=rows.reduce((a,r)=>a+(parseFloat(r[soH])||0),0);const a=rows.reduce((ac,r)=>ac+(parseFloat(r[saH])||0),0);return o>0?Math.round(a/o*100)+'%':'-';}});
+  if(koH&&kaH) metrics.push({label:'既存更新率',fn:rows=>{const o=rows.reduce((a,r)=>a+(parseFloat(r[koH])||0),0);const a=rows.reduce((ac,r)=>ac+(parseFloat(r[kaH])||0),0);return o>0?Math.round(a/o*100)+'%':'-';}});
+  if(cbH) metrics.push({label:'平均チェック数',fn:rows=>{const cs=rows.map(r=>{const v=String(r[cbH]||'').trim();return v?v.split(/[,、\n]/).filter(Boolean).length:0;});return cs.length?(cs.reduce((a,b)=>a+b,0)/cs.length).toFixed(1):'-';}});
+  metrics.push({label:'提出件数',fn:rows=>rows.length});
+
+  if(!metrics.length) return '';
+
+  const thHTML = months.map(m=>`<th>${m.replace('/','-')}</th>`).join('');
+
+  // 前月比アロー
+  const arrow = (cur,prev)=>{
+    const c=parseFloat(cur),p=parseFloat(prev);
+    if(isNaN(c)||isNaN(p)||cur==='-'||prev==='-') return '';
+    if(c>p) return '<span class="mc-up"> ↑</span>';
+    if(c<p) return '<span class="mc-down"> ↓</span>';
+    return '<span class="mc-same"> →</span>';
+  };
+
+  const rowsHTML = metrics.map(m=>{
+    const vals = months.map(ym=>m.fn(monthMap[ym]));
+    const cells = vals.map((v,i)=>`<td>${v}${i>0?arrow(v,vals[i-1]):''}</td>`).join('');
+    return `<tr><td>${m.label}</td>${cells}</tr>`;
+  }).join('');
+
+  return `<div class="mc-wrap">
+    <div class="mc-head">📅 月別比較（↑↓ 前月比）</div>
+    <div class="mc-body">
+      <table class="mc-table">
+        <thead><tr><th>指標</th>${thHTML}</tr></thead>
+        <tbody>${rowsHTML}</tbody>
+      </table>
+    </div>
+  </div>`;
+}
+
+// ════════════════════════════════════════
+//  MEMO PANEL
+// ════════════════════════════════════════
+function buildMemoPanel(person) {
+  const memos = MEMOS[person]||[];
+  const items = memos.map((m,i)=>`
+    <div class="memo-item">
+      <div class="memo-item-date">${m.date}</div>
+      <button class="memo-delete" data-person="${esc(person)}" data-idx="${i}" onclick="deleteMemo(this.dataset.person,parseInt(this.dataset.idx))">✕</button>
+      ${esc(m.text)}
+    </div>`).join('');
+  return `<div class="memo-panel">
+    <div class="memo-head">📝 院長メモ（${person}）</div>
+    <div class="memo-body">
+      ${items||'<p style="color:var(--muted);font-size:.82rem">メモなし</p>'}
+      <div class="memo-input-row">
+        <textarea class="memo-input" id="memoInput_${esc(person)}" rows="2" placeholder="メモを入力..."></textarea>
+        <button class="btn btn-primary btn-sm" data-person="${esc(person)}" onclick="addMemo(this.dataset.person)">追加</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function addMemo(person) {
+  const el = document.getElementById('memoInput_'+person);
+  if(!el||!el.value.trim()) return;
+  if(!MEMOS[person]) MEMOS[person]=[];
+  MEMOS[person].unshift({date:new Date().toLocaleDateString('ja-JP'),text:el.value.trim()});
+  saveMemos();
+  render();
+}
+function deleteMemo(person,idx){
+  if(!MEMOS[person]) return;
+  MEMOS[person].splice(idx,1);
+  saveMemos();
+  render();
+}
+
+// ════════════════════════════════════════
+//  AI INTERVIEW SHEET（面談準備）
+// ════════════════════════════════════════
+function genInterviewSheet(){
+  const f=FILES.find(f=>f.id===activeId);if(!f)return;
+  const btn=document.getElementById('btnInterview');
+  btn.disabled=true;btn.innerHTML='<span class="spin"></span>';
+  if(!getApiKey()){btn.disabled=false;btn.innerHTML='🗣 面談準備';openAiModal('🔑 APIキーが必要','<p style="padding:1rem;color:#fbbf24">ヘッダーの🔑入力欄にAPIキーを入力してください。</p>');return;}
+
+  const dateH=fh(f.headers,'date');
+  const recent=[...f.rows].filter(r=>fmtDate(r[dateH]||'')).sort((a,b)=>fmtDate(b[dateH]).localeCompare(fmtDate(a[dateH]))).slice(0,5);
+  const summary=recent.map(r=>{
+    const d=fmtDate(r[dateH]);
+    const motiH2=fh(f.headers,'moti'),cbH2=fh(f.headers,'checkbox');
+    const themeH2=fh(f.headers,'theme'),ikuseiH2=fh(f.headers,'ikusei');
+    const soH2=fh(f.headers,'shinkiOpp'),saH2=fh(f.headers,'shinkiAch');
+    const parts=[];
+    if(motiH2&&r[motiH2])parts.push('モチベ:'+r[motiH2]);
+    if(soH2&&saH2)parts.push('新規成約:'+(r[saH2]||0)+'/'+(r[soH2]||0));
+    if(cbH2&&r[cbH2]){const its=String(r[cbH2]).split(/[,\u3001\n]/).filter(Boolean);parts.push('意識項目:'+its.map(s=>s.replace(/【|】/g,'').trim().slice(0,15)).join('/'));}
+    if(themeH2&&r[themeH2]&&!blank(r[themeH2]))parts.push('テーマ:'+String(r[themeH2]).slice(0,50));
+    if(ikuseiH2&&r[ikuseiH2]&&!blank(r[ikuseiH2]))parts.push('育成:'+String(r[ikuseiH2]).slice(0,50));
+    return'['+d+'] '+parts.join(' | ');
+  }).join('\n');
+  const memos=(MEMOS[f.person]||[]).map(m=>m.date+': '+m.text).join('\n');
+  const prompt=f.person+'（'+roleLabel(f.role)+'）の直近データ:\n'+summary+'\n'+(memos?'院長メモ:\n'+memos:'')+'\n\n上司が次の1on1面談で使うシートをJSON形式のみで作成:\n{"praise":"褒めるべき具体的なポイント（2文）","issue":"課題・懸念点（2文）","questions":["質問1","質問2","質問3"],"action":"面談後の具体的アクション（1文）"}';
+
+  openAiModal('🗣 面談準備シート — '+f.person,'<div class="interview-sheet"><div class="is-header">準備中... <span class="spin"></span></div></div>');
+
+  apiCall(
+    {model:'claude-sonnet-4-5',max_tokens:800,messages:[{role:'user',content:prompt}]},
+    function(data){
+      try{
+        const text=(data.content||[]).map(c=>c.text||'').join('').replace(/```json|```/g,'').trim();
+        const sheet=JSON.parse(text);
+        const interviewText='【褒めるポイント】\n'+sheet.praise+'\n\n【課題・懸念点】\n'+sheet.issue+'\n\n【推奨質問】\n'+(sheet.questions||[]).map((q,i)=>(i+1)+'. '+q).join('\n')+'\n\n【面談後アクション】\n'+sheet.action;
+        openAiModal('🗣 面談準備シート — '+f.person,
+          '<div class="interview-sheet">'+
+          '<div class="is-header">🗣 面談準備シート <span style="font-weight:400;font-size:.75rem;opacity:.7">'+esc(f.person)+' · '+new Date().toLocaleDateString('ja-JP')+'</span></div>'+
+          '<div class="is-section"><div class="is-sec-label">💪 褒めるポイント</div><div class="is-text">'+esc(sheet.praise)+'</div></div>'+
+          '<div class="is-section"><div class="is-sec-label">⚠️ 課題・懸念点</div><div class="is-text">'+esc(sheet.issue)+'</div></div>'+
+          '<div class="is-section"><div class="is-sec-label">💬 推奨質問</div><ul class="is-qs">'+(sheet.questions||[]).map(q=>'<li>'+esc(q)+'</li>').join('')+'</ul></div>'+
+          '<div class="is-section"><div class="is-sec-label">🎯 面談後アクション</div><div class="is-text">'+esc(sheet.action)+'</div></div>'+
+          '</div>');
+        addSaveButtonToModal(f.person,'🗣 面談準備シート ('+new Date().toLocaleDateString('ja-JP')+')',interviewText);
+      }catch(e){
+        openAiModal('🗣 面談準備シート','<p style="padding:1rem;color:rgba(255,255,255,.4)">解析エラー: '+esc(String(e))+'</p>');
+      }
+      btn.disabled=false;btn.innerHTML='🗣 面談準備';
+    },
+    function(err){
+      openAiModal('🗣 面談準備シート','<p style="padding:1rem;color:rgba(255,255,255,.4)">'+esc(err)+'</p>');
+      btn.disabled=false;btn.innerHTML='🗣 面談準備';
+    }
+  );
+}
+
+// ════════════════════════════════════════
+//  MONTHLY REPORT（月次レポートプレビュー）
+// ════════════════════════════════════════
+function showReport(){
+  let targetFiles=[],person='',role='';
+  if(activeId&&activeId.startsWith('__merged__')){
+    const idx2=parseInt(activeId.replace('__merged__',''));
+    person=mergedIndex[idx2];
+    targetFiles=FILES.filter(f=>f.person===person);
+    role=targetFiles[0]?.role||'other';
+  } else {
+    const f=FILES.find(f=>f.id===activeId);
+    if(!f)return;
+    targetFiles=[f]; person=f.person; role=f.role;
+  }
+  if(!targetFiles.length)return;
+
+  const nippo=targetFiles.find(f=>f.type==='nippo');
+  const shuho=targetFiles.find(f=>f.type==='shuho');
+
+  // 全ファイルから年月一覧
+  const monthSet=new Set();
+  targetFiles.forEach(f=>{
+    const dH=fh(f.headers,'date');
+    f.rows.forEach(r=>{const d=fmtDate(r[dH]||'');if(d)monthSet.add(d.slice(0,7));});
+  });
+  const months=[...monthSet].sort().reverse();
+  const latestMonth=months[0]||'';
+
+  // コメント収集ヘルパー
+  const rpSec=(title,color,items)=>{
+    if(!items.length)return'';
+    const rows2=items.map(({date,text})=>`<div style="margin:.3rem 0;padding:.4rem .7rem;background:#f8f9fb;border-left:3px solid ${color}44;font-size:.81rem;line-height:1.65"><span style="font-size:.68rem;color:#999;margin-right:.5rem">${date}</span>${esc(text)}</div>`).join('');
+    return`<h3 style="margin:1rem 0 .35rem;font-size:.88rem;color:${color};border-left:4px solid ${color};padding-left:.5rem">${title}</h3>${rows2}`;
+  };
+  const collectTxt=(rows2,headers,key)=>rows2.map(r=>{
+    const h=fh(headers,key),dH=fh(headers,'date');
+    const d=fmtDate(r[dH]||''),t=h?String(r[h]||'').trim():'';
+    return{date:d,text:t};
+  }).filter(x=>!blank(x.text));
+
+  // レポートHTML生成
+  window._buildReportHTML=(dateFrom,dateTo)=>{
+    const nippoRows=nippo?(()=>{const dH=fh(nippo.headers,'date');return nippo.rows.filter(r=>{const d=fmtDate(r[dH]||'');return d&&d>=dateFrom&&d<=dateTo;});})():[];
+    const shuhoRows=shuho?(()=>{const dH=fh(shuho.headers,'date');return shuho.rows.filter(r=>{const d=fmtDate(r[dH]||'');return d&&d>=dateFrom&&d<=dateTo;});})():[];
+
+    // 日報数値
+    let statsHTML='';
+    if(nippo&&nippoRows.length){
+      const h=nippo.headers;
+      const soH=fh(h,'shinkiOpp'),saH=fh(h,'shinkiAch'),koH=fh(h,'kizonOpp'),kaH=fh(h,'kizonAch');
+      const motiH=fh(h,'moti'),loadH=fh(h,'load'),cbH=fh(h,'checkbox');
+      const snsH=fh(h,'sns'),kuchiH=fh(h,'kuchi'),shoreiH=fh(h,'shorei'),shinkanH=fh(h,'shinkan');
+      const sum=hh=>hh?nippoRows.reduce((a,r)=>a+(parseFloat(r[hh])||0),0):0;
+      const avgg=hh=>{if(!hh)return null;const vs=nippoRows.map(r=>parseFloat(r[hh])).filter(v=>!isNaN(v));return vs.length?(vs.reduce((a,b)=>a+b,0)/vs.length).toFixed(1):null;};
+      const so=sum(soH),sa=sum(saH),ko=sum(koH),ka=sum(kaH);
+      const sp=pct(sa,so),kp=pct(ka,ko);
+      const am=avgg(motiH),al=avgg(loadH);
+      const cbAvg=(()=>{if(!cbH)return null;const cs=nippoRows.map(r=>{const v=String(r[cbH]||'').trim();return v?v.split(/[,\u3001\n]/).filter(Boolean).length:0;});return cs.length?(cs.reduce((a,b)=>a+b,0)/cs.length).toFixed(1):null;})();
+      const stats=[
+        {n:nippoRows.length,l:'日報提出数'},
+        soH?{n:`${sa}/${so}`,l:`新規成約${sp!==null?' ('+sp+'%)':''}`}:null,
+        koH?{n:`${ka}/${ko}`,l:`既存更新${kp!==null?' ('+kp+'%)':''}`}:null,
+        am?{n:am,l:'モチベ平均 /5'}:null,
+        al?{n:al,l:'業務負荷平均 /5'}:null,
+        cbAvg?{n:cbAvg,l:'平均チェック数'}:null,
+        snsH?{n:sum(snsH),l:'SNS累計'}:null,
+        kuchiH?{n:sum(kuchiH),l:'口コミ累計'}:null,
+        shoreiH?{n:sum(shoreiH),l:'症例累計'}:null,
+        shinkanH?{n:sum(shinkanH),l:'紹介新患累計'}:null,
+      ].filter(Boolean);
+      statsHTML=`<div class="rp-row">${stats.map(s=>`<div class="rp-stat"><div class="rp-stat-n">${s.n}</div><div class="rp-stat-l">${s.l}</div></div>`).join('')}</div>`;
+    }
+
+    // 週報数値
+    let shuhoStatsHTML='';
+    if(shuho&&shuhoRows.length){
+      const h=shuho.headers;
+      const mH=fh(h,'moti'),lH=fh(h,'load'),aH=fh(h,'achRate');
+      const avg2=hh=>{if(!hh)return null;const vs=shuhoRows.map(r=>parseFloat(r[hh])).filter(v=>!isNaN(v));return vs.length?(vs.reduce((a,b)=>a+b,0)/vs.length).toFixed(1):null;};
+      const avgPct=hh=>{if(!hh)return null;const vs=shuhoRows.map(r=>parseFloat(String(r[hh]||'').replace('%',''))).filter(v=>!isNaN(v));return vs.length?(vs.reduce((a,b)=>a+b,0)/vs.length).toFixed(1):null;};
+      const am2=avg2(mH),al2=avg2(lH),ar2=avgPct(aH);
+      const s2=[
+        {n:shuhoRows.length,l:'週報提出数'},
+        am2?{n:am2,l:'モチベ平均 /5'}:null,
+        al2?{n:al2,l:'業務負荷平均 /5'}:null,
+        ar2?{n:ar2+'%',l:'達成率平均'}:null,
+      ].filter(Boolean);
+      if(s2.length)shuhoStatsHTML=`<div class="rp-row">${s2.map(s=>`<div class="rp-stat"><div class="rp-stat-n">${s.n}</div><div class="rp-stat-l">${s.l}</div></div>`).join('')}</div>`;
+    }
+
+    // 日報コメント
+    let nippoComments='';
+    if(nippo&&nippoRows.length){
+      const h=nippo.headers;
+      const cbComH=fh(h,'checkboxComment');
+      const cbComs=cbComH?nippoRows.map(r=>({date:fmtDate(r[fh(h,'date')]||''),text:String(r[cbComH]||'').trim()})).filter(x=>!blank(x.text)):[];
+      nippoComments=
+        rpSec('🎯 テーマ・フィロソフィーシェア','#2563b0',collectTxt(nippoRows,h,'theme'))+
+        rpSec('☑️ 意識項目コメント','#0e7490',cbComs)+
+        rpSec('💪 育成意識','#1a7a4a',collectTxt(nippoRows,h,'ikusei'))+
+        rpSec('⭐ 情意評価','#7c3aed',collectTxt(nippoRows,h,'joui'))+
+        rpSec('🌟 承認・賞賛ボード','#b45309',collectTxt(nippoRows,h,'kudos'));
+    }
+
+    // 週報コメント
+    let shuhoComments='';
+    if(shuho&&shuhoRows.length){
+      const h=shuho.headers;
+      shuhoComments=
+        rpSec('📋 先週の評価・課題','#4b5563',collectTxt(shuhoRows,h,'eval'))+
+        rpSec('🎯 今週の目標','#2563b0',collectTxt(shuhoRows,h,'goal'))+
+        rpSec('✅ 今週の成果・完了タスク','#1a7a4a',collectTxt(shuhoRows,h,'done'))+
+        rpSec('⚠️ 課題・ブロッカー','#dc2626',collectTxt(shuhoRows,h,'issue'))+
+        rpSec('📝 今週のやることリスト','#6d28d9',collectTxt(shuhoRows,h,'todo'))+
+        rpSec('📌 先週のやること（振り返り）','#b45309',collectTxt(shuhoRows,h,'prevTodo'))+
+        rpSec('🎯 テーマ・フィロソフィーシェア','#2563b0',collectTxt(shuhoRows,h,'theme'))+
+        rpSec('💪 育成意識シェア','#1a7a4a',collectTxt(shuhoRows,h,'ikusei'))+
+        rpSec('💬 要望・質問','#6b7280',collectTxt(shuhoRows,h,'free'));
+    }
+
+    // 院長メモ
+    const memoItems=MEMOS[person]||[];
+    const memosHTML=memoItems.length?`<h3 style="margin:1rem 0 .35rem;font-size:.88rem;color:#374151;border-left:4px solid #374151;padding-left:.5rem">📝 院長メモ</h3>${memoItems.map(m=>`<div style="margin:.3rem 0;padding:.4rem .7rem;background:#f8f9fb;border-left:3px solid #37415144;font-size:.81rem">${m.date}：${esc(m.text)}</div>`).join('')}`:'';
+
+    const ymLabel=dateFrom===dateTo?dateFrom:dateFrom+' 〜 '+dateTo;
+    return`<div class="report-preview" id="reportPreview">
+      <div style="text-align:center;margin-bottom:1.2rem;border-bottom:3px solid #1a3a6b;padding-bottom:.75rem">
+        <div style="font-size:.68rem;color:#888;letter-spacing:.12em">期間レポート</div>
+        <div style="font-size:1.5rem;font-weight:900;color:#1a3a6b;margin:.2rem 0 .1rem">${esc(person)}</div>
+        <div style="font-size:.8rem;color:#555">${roleLabel(role)} ／ ${ymLabel} ／ 日報${nippoRows.length}件 週報${shuhoRows.length}件</div>
+      </div>
+      ${statsHTML||shuhoStatsHTML?`<h3 style="margin:.8rem 0 .4rem;font-size:.88rem;color:#1a3a6b;border-left:4px solid #1a3a6b;padding-left:.5rem">📊 数値実績</h3>`:''}
+      ${statsHTML}${shuhoStatsHTML}
+      ${nippoComments?`<div style="margin-top:.8rem">${nippoComments}</div>`:''}
+      ${shuhoComments?`<div style="margin-top:.8rem;padding-top:.8rem;border-top:2px dashed #e5e7eb">${shuhoComments}</div>`:''}
+      ${memosHTML}
+      <div style="margin-top:1.5rem;border-top:1px solid #ddd;padding-top:.5rem;font-size:.68rem;color:#aaa;display:flex;justify-content:space-between">
+        <span>出力日：${new Date().toLocaleDateString('ja-JP')}</span>
+        <span style="color:#1a3a6b;font-weight:700">スタッフ評価ビューワー</span>
+      </div>
+    </div>`;
+  };
+
+  // 年・月セレクター生成
+  const yearSet=new Set(months.map(m=>m.slice(0,4)));
+  const years=[...yearSet].sort().reverse();
+  const latestYear=latestMonth.slice(0,4);
+  const latestMon=latestMonth.slice(5,7);
+  // 全データの最古・最新日付を取得
+  const allDates2=[];
+  targetFiles.forEach(f=>{const dH=fh(f.headers,'date');f.rows.forEach(r=>{const d=fmtDate(r[dH]||'');if(d)allDates2.push(d);});});
+  allDates2.sort();
+  const oldestDate=allDates2[0]||latestMonth+'/01';
+  const newestDate=allDates2[allDates2.length-1]||latestMonth+'/28';
+  // YYYY-MM-DD形式に変換（input[type=date]用）
+  const toInputDate=d=>d.replace(/\//g,'-');
+  const defaultFrom=toInputDate(oldestDate);
+  const defaultTo=toInputDate(newestDate);
+  const goBack=`activeId&&activeId.startsWith('__merged__')?renderMerged(mergedIndex[parseInt(activeId.replace('__merged__',''))]):render()`;
+
+  document.getElementById('mainInner').innerHTML=`
+    <div class="meta-bar">
+      <div><div class="meta-name">📄 期間レポート</div><div class="meta-sub">${esc(person)} · ${roleLabel(role)}</div></div>
+      <div class="controls" style="display:flex;gap:.4rem;align-items:center;flex-wrap:wrap">
+        <div class="filter-bar-rp" style="margin:0;gap:.5rem">
+          <span class="rp-label">📅 開始</span>
+          <input type="date" id="rpDateFrom" value="${defaultFrom}" style="width:145px">
+          <span class="rp-label">〜 終了</span>
+          <input type="date" id="rpDateTo" value="${defaultTo}" style="width:145px">
+          <button class="btn btn-primary btn-sm" id="rpApply" style="margin-left:.2rem">適用</button>
+        </div>
+        <button class="btn btn-outline btn-sm" onclick="printReport()">🖨 印刷</button>
+        <button class="btn btn-outline btn-sm" onclick="${goBack}">← 戻る</button>
+      </div>
+    </div>
+    <div id="reportWrap">${window._buildReportHTML(defaultFrom,defaultTo)}</div>`;
+
+  document.getElementById('rpApply').addEventListener('click',()=>{
+    const from=document.getElementById('rpDateFrom').value.replace(/-/g,'/');
+    const to=document.getElementById('rpDateTo').value.replace(/-/g,'/');
+    if(!from||!to){alert('開始・終了日を選択してください');return;}
+    document.getElementById('reportWrap').innerHTML=window._buildReportHTML(from,to);
+  });
+}
+
+function printReport(){
+  const src=document.getElementById('reportPreview');
+  if(!src)return;
+  const pa=document.getElementById('printArea');
+  pa.innerHTML=src.outerHTML;
+  window.print();
+  setTimeout(()=>{pa.innerHTML='';},1000);
+}
+
+
+// ════════════════════════════════════════
+//  COPY FOR CLAUDE（クリップボードコピー）
+// ════════════════════════════════════════
+function copyForClaude(){
+  let targetFiles=[],person='',role='';
+  if(activeId&&activeId.startsWith('__merged__')){
+    const idx2=parseInt(activeId.replace('__merged__',''));
+    person=mergedIndex[idx2];
+    targetFiles=FILES.filter(f=>f.person===person);
+    role=targetFiles[0]?.role||'other';
+  } else {
+    const f=FILES.find(f=>f.id===activeId);
+    if(!f)return;
+    targetFiles=[f]; person=f.person; role=f.role;
+  }
+  if(!targetFiles.length)return;
+
+  const lines=[];
+  lines.push('以下は'+person+'（'+roleLabel(role)+'）のスタッフ評価データです。');
+  lines.push('このデータをもとに以下を教えてください：');
+  lines.push('1. 褒めるべき具体的なポイント');
+  lines.push('2. 課題・改善すべき点');
+  lines.push('3. 面談で使える推奨質問3つ');
+  lines.push('4. 上司としての次のアクション');
+  lines.push('5. 成長傾向の分析（数値・行動の変化）');
+  lines.push('');
+  lines.push('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
+  targetFiles.forEach(function(f){
+    const dateH=fh(f.headers,'date');
+    const sorted=[...f.rows]
+      .filter(function(r){return fmtDate(r[dateH]||'');})
+      .sort(function(a,b){return fmtDate(b[dateH]).localeCompare(fmtDate(a[dateH]));})
+      .slice(0,15);
+
+    lines.push('');
+    lines.push('【'+(f.type==='nippo'?'日報':'週報')+'（直近'+sorted.length+'件）】');
+
+    const motiH=fh(f.headers,'moti'),loadH=fh(f.headers,'load');
+    const soH=fh(f.headers,'shinkiOpp'),saH=fh(f.headers,'shinkiAch');
+    const koH=fh(f.headers,'kizonOpp'),kaH=fh(f.headers,'kizonAch');
+    const cbH=fh(f.headers,'checkbox'),cbComH=fh(f.headers,'checkboxComment');
+    const themeH=fh(f.headers,'theme'),ikuseiH=fh(f.headers,'ikusei');
+    const goalH=fh(f.headers,'goal'),doneH=fh(f.headers,'done');
+    const issueH=fh(f.headers,'issue'),todoH=fh(f.headers,'todo');
+    const evalH=fh(f.headers,'eval'),jouiH=fh(f.headers,'joui');
+    const freeH=fh(f.headers,'free');
+
+    sorted.forEach(function(r){
+      const d=fmtDate(r[dateH]||'');
+      lines.push('');
+      lines.push('▼ '+d);
+      if(motiH&&r[motiH])lines.push('  モチベーション: '+r[motiH]+'/5');
+      if(loadH&&r[loadH])lines.push('  業務負荷: '+r[loadH]+'/5');
+      if(soH&&saH){var o=r[soH]||0,a=r[saH]||0;if(o||a)lines.push('  新規成約: '+a+'/'+o+'件'+(o>0?' ('+Math.round(a/o*100)+'%)':''));}
+      if(koH&&kaH){var o2=r[koH]||0,a2=r[kaH]||0;if(o2||a2)lines.push('  既存更新: '+a2+'/'+o2+'件'+(o2>0?' ('+Math.round(a2/o2*100)+'%)':''));}
+      if(cbH&&r[cbH]&&!blank(r[cbH])){
+        var items=String(r[cbH]).split(/[,\u3001\n]/).filter(Boolean).map(function(s){return s.trim();});
+        lines.push('  意識項目: '+items.join(' / '));
+      }
+      if(cbComH&&r[cbComH]&&!blank(r[cbComH]))lines.push('  意識コメント: '+String(r[cbComH]).trim());
+      if(themeH&&r[themeH]&&!blank(r[themeH]))lines.push('  テーマシェア: '+String(r[themeH]).slice(0,100));
+      if(ikuseiH&&r[ikuseiH]&&!blank(r[ikuseiH]))lines.push('  育成: '+String(r[ikuseiH]).slice(0,100));
+      if(evalH&&r[evalH]&&!blank(r[evalH]))lines.push('  先週の評価: '+String(r[evalH]).slice(0,100));
+      if(goalH&&r[goalH]&&!blank(r[goalH]))lines.push('  今週の目標: '+String(r[goalH]).slice(0,100));
+      if(doneH&&r[doneH]&&!blank(r[doneH]))lines.push('  今週の成果: '+String(r[doneH]).slice(0,100));
+      if(issueH&&r[issueH]&&!blank(r[issueH]))lines.push('  課題: '+String(r[issueH]).slice(0,100));
+      if(todoH&&r[todoH]&&!blank(r[todoH]))lines.push('  やること: '+String(r[todoH]).slice(0,100));
+      if(jouiH&&r[jouiH]&&!blank(r[jouiH]))lines.push('  情意評価: '+String(r[jouiH]).slice(0,80));
+      if(freeH&&r[freeH]&&!blank(r[freeH]))lines.push('  要望: '+String(r[freeH]).slice(0,80));
+    });
+  });
+
+  var memos=MEMOS[person]||[];
+  if(memos.length){
+    lines.push('');
+    lines.push('【院長メモ】');
+    memos.forEach(function(m){lines.push('  '+m.date+': '+m.text);});
+  }
+
+  lines.push('');
+  lines.push('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  lines.push('上記データについて、院長として育成・面談に活かせる分析をお願いします。');
+
+  var text=lines.join('\n');
+
+  navigator.clipboard.writeText(text).then(function(){
+    openAiModal('📋 Claude.aiへコピー完了！',
+      '<div style="padding:.5rem 0">'+
+      '<p style="color:#6ee7b7;font-size:.95rem;font-weight:700;margin-bottom:.8rem">✅ クリップボードにコピーしました！</p>'+
+      '<div style="background:rgba(255,255,255,.06);border-radius:8px;padding:.8rem 1rem;margin-bottom:1rem">'+
+      '<p style="font-size:.84rem;color:rgba(255,255,255,.85);line-height:2;margin:0">'+
+      '① <a href="https://claude.ai" target="_blank" style="color:#60a5fa;text-decoration:underline">claude.ai</a> を新しいタブで開く<br>'+
+      '② 新しいチャットを開始<br>'+
+      '③ 入力欄に <kbd style="background:rgba(255,255,255,.15);padding:.1rem .4rem;border-radius:4px;font-family:monospace">Ctrl+V</kbd>（Macは<kbd style="background:rgba(255,255,255,.15);padding:.1rem .4rem;border-radius:4px;font-family:monospace">⌘+V</kbd>）で貼り付けて送信'+
+      '</p></div>'+
+      '<p style="font-size:.75rem;color:rgba(255,255,255,.4);margin:0">'+person+'の直近データ＋面談・成長分析の依頼文をコピーしました</p>'+
+      '</div>');
+  }).catch(function(){
+    openAiModal('📋 以下をコピーして claude.ai に貼り付けてください',
+      '<textarea id="copyArea" style="width:100%;height:280px;font-size:.7rem;font-family:monospace;background:rgba(0,0,0,.4);color:#e2e8f0;border:1px solid rgba(255,255,255,.2);border-radius:8px;padding:.6rem;resize:vertical;box-sizing:border-box" onclick="this.select()"></textarea>'+
+      '<div style="display:flex;gap:.5rem;margin-top:.5rem;align-items:center">'+
+      '<button onclick="document.getElementById(\'copyArea\').select();document.execCommand(\'copy\')" style="background:#2563b0;color:#fff;border:none;border-radius:6px;padding:.35rem .8rem;font-size:.78rem;cursor:pointer">全選択＆コピー</button>'+
+      '<a href="https://claude.ai" target="_blank" style="color:#60a5fa;font-size:.78rem">→ claude.ai を開く</a>'+
+      '</div>');
+    setTimeout(function(){
+      var ta=document.getElementById('copyArea');
+      if(ta)ta.value=text;
+    },50);
+  });
+}
+
+// ════════════════════════════════════════
+//  API CALL（file://対応・XHRフォールバック）
+// ════════════════════════════════════════
+function apiCall(payload, onSuccess, onError){
+  var key = getApiKey();
+  if(!key){ onError('APIキーが入力されていません'); return; }
+  var url = 'https://api.anthropic.com/v1/messages';
+  var headers = {
+    'Content-Type': 'application/json',
+    'anthropic-dangerous-direct-browser-calls': 'true',
+    'x-api-key': key
+  };
+  var body = JSON.stringify(payload);
+
+  // まずfetchを試みる
+  if(typeof fetch !== 'undefined' && location.protocol !== 'file:'){
+    fetch(url, {method:'POST', headers:headers, body:body})
+      .then(function(res){
+        if(!res.ok) return res.json().then(function(e){throw new Error('API Error '+res.status+': '+(e.error&&e.error.message||res.statusText));});
+        return res.json();
+      })
+      .then(function(data){ onSuccess(data); })
+      .catch(function(e){ onError(String(e)); });
+    return;
+  }
+
+  // file://の場合はXHRを使う
+  var xhr = new XMLHttpRequest();
+  xhr.open('POST', url, true);
+  Object.keys(headers).forEach(function(k){ xhr.setRequestHeader(k, headers[k]); });
+  xhr.onload = function(){
+    try{
+      var data = JSON.parse(xhr.responseText);
+      if(xhr.status >= 400){
+        onError('API Error '+xhr.status+': '+(data.error&&data.error.message||xhr.statusText));
+        return;
+      }
+      onSuccess(data);
+    }catch(e){ onError('レスポンス解析エラー: '+e); }
+  };
+  xhr.onerror = function(){
+    onError('接続エラー。APIキーを確認するか、Chromeで--allow-file-access-from-filesオプションをつけて開いてください。');
+  };
+  xhr.send(body);
+}
+
+// ════════════════════════════════════════
+//  AI MODAL
+// ════════════════════════════════════════
+function openAiModal(title, bodyHTML){
+  document.getElementById('aiModalTitle').textContent=title;
+  document.getElementById('aiModalBody').innerHTML=bodyHTML;
+  document.getElementById('aiModal').style.display='block';
+  document.body.style.overflow='hidden';
+}
+function closeAiModal(){
+  document.getElementById('aiModal').style.display='none';
+  document.body.style.overflow='';
+}
+
+// ════════════════════════════════════════
+//  PRINT / SAVE
+// ════════════════════════════════════════
+function doPrint(){
+  const src=document.getElementById('mainInner');
+  const pa=document.getElementById('printArea');
+  pa.innerHTML=src.innerHTML;
+  pa.querySelectorAll('.day-card.col').forEach(c=>c.classList.remove('col'));
+  pa.querySelectorAll('canvas').forEach(c=>c.remove()); // canvasは印刷不可なので除去
+  window.print();
+  setTimeout(()=>{pa.innerHTML='';},500);
+}
+
+function doSave(){
+  const f=FILES.find(f=>f.id===activeId);
+  if(!f){alert('保存するファイルを選択してください');return;}
+  const dateH=fh(f.headers,'date');
+  let txt=`■ スタッフ評価レポート\nファイル：${f.name}\n対象者：${f.person}\n種別：${roleLabel(f.role)} / ${f.type==='nippo'?'日報':'週報'}\n出力：${new Date().toLocaleString('ja-JP')}\n件数：${f.rows.length}件\n${'─'.repeat(48)}\n\n`;
+  f.rows.forEach(row=>{
+    txt+=`【${fmtDate(row[dateH]||'')}】\n`;
+    Object.entries(row).forEach(([k,v])=>{if(v&&v!==''&&v!=='0'&&!blank(v))txt+=`  ${k}：${v}\n`;});
+    txt+='\n';
+  });
+  try{
+    const blob=new Blob(['\uFEFF'+txt],{type:'text/plain;charset=utf-8'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');a.href=url;
+    a.download=`評価レポート_${f.person}_${new Date().toISOString().slice(0,10)}.txt`;
+    document.body.appendChild(a);a.click();document.body.removeChild(a);
+    setTimeout(()=>URL.revokeObjectURL(url),1000);
+  }catch(e){alert('保存に失敗しました: '+e.message);}
+}
+
+// ════════════════════════════════════════
+//  DRAG & DROP
+// ════════════════════════════════════════
+const dz=document.getElementById('dropZone');
+dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('drag');});
+dz.addEventListener('dragleave',()=>dz.classList.remove('drag'));
+dz.addEventListener('drop',async e=>{
+  e.preventDefault();dz.classList.remove('drag');
+  for(const f of Array.from(e.dataTransfer.files))await readOne(f);
+  renderUploadList();
+  if(document.getElementById('appLayout').classList.contains('vis')){buildSidebar();}
+});
+</script>
+</body>
+</html>
